@@ -304,7 +304,7 @@ export function PaystackButton({
           amount: Math.round(amount * 100),
           publicKey,
           label: name,
-          currency: 'NGN', // Changed from GHS to NGN for Nigerian currency
+          currency: 'GHS', // Changed from GHS to NGN for Nigerian currency
         });
 
         if (!initializePayment) {

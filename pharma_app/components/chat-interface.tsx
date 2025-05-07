@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, AlertCircle, X, RefreshCw, Stethoscope, UserRound, ShoppingCart, FileText, ChevronDown, ChevronUp, Clock, Check, List, Lightbulb, CreditCard, ArrowLeft, Printer, Pill, FileCheck, Clipboard, Loader2, Heart } from "lucide-react";
+import { Send, Bot, AlertCircle, X, RefreshCw, Stethoscope, UserRound, ShoppingCart, FileText, ChevronDown, ChevronUp, Clock, Check, List, Lightbulb, CreditCard, ArrowLeft, Printer, Pill, FileCheck, Clipboard, Loader2, Heart, Ban } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,7 @@ import { isNetworkError } from "@/lib/api-helpers";
 // New type for medication with purchase options
 type MedicationWithPurchase = {
   id?: string;
+  drugId?: string;
   name: string;
   genericName?: string;
   dosage: string;
@@ -476,6 +477,9 @@ Please take to your local pharmacy to fulfill this prescription.
         
         console.log('Drug matching results:', JSON.stringify(data.matches, null, 2));
         
+        // Clear previous unavailable drugs
+        setUnavailableDrugs([]);
+        
         // Process the matches
         const medicationOptions = data.matches.map((item: any, index: number) => {
           const { prescription: prescriptionString, match } = item;
@@ -539,7 +543,7 @@ Please take to your local pharmacy to fulfill this prescription.
         if (medicationOptions.every((med: MedicationWithPurchase) => med.notFound)) {
           toast.warning('None of the prescribed medications are available in our pharmacy. You can download the prescription to take to another pharmacy.');
         } else if (medicationOptions.some((med: MedicationWithPurchase) => med.notFound)) {
-          toast.info('Some prescribed medications are not available. You can either proceed with available medications or download the full prescription.');
+          toast.info('Some prescribed medications are not available. You can proceed with available medications or download the full prescription.');
         }
         
         return medicationOptions;
@@ -753,110 +757,73 @@ Please take to your local pharmacy to fulfill this prescription.
     </motion.div>
   );
 
-  // Enhanced medication panel
+  // Render medication panel
   const renderMedicationPanel = () => {
-    if (!medications || medications.length === 0) return null;
-    
-    // Check if there are any unavailable drugs
-    const hasUnavailableDrugs = unavailableDrugs.length > 0;
+    // Check if all medications are unavailable
+    const allDrugsUnavailable = medications.length > 0 && medications.every(med => med.notFound);
+    // Check if some medications are unavailable but not all
+    const someDrugsUnavailable = unavailableDrugs.length > 0 && !allDrugsUnavailable;
     
     return (
-      <motion.div 
+      <motion.div
+        className="flex flex-col h-full"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 20 }}
         transition={{ duration: 0.3 }}
-        className="mt-8 rounded-lg overflow-hidden bg-white shadow-lg border mb-8"
       >
-        <div className="bg-primary text-white p-4">
-          <h3 className="text-lg font-medium flex items-center">
-            <Heart className="mr-2 h-5 w-5" />
-            Recommended Medications
-          </h3>
-        </div>
-        
-        {/* Display warning alert when drugs are unavailable */}
-        {hasUnavailableDrugs && (
-          <Alert variant="destructive" className="m-4 bg-destructive/10 text-destructive border-destructive/20">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Prescription Availability Issue</AlertTitle>
-            <AlertDescription>
-              One or more prescribed drugs are unavailable in our database. You may download the prescription and take it to a pharmacy.
-            </AlertDescription>
-          </Alert>
-        )}
-        
-        <div className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="p-4 flex flex-col h-full space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Prescribed Medications</h3>
+            <Button variant="ghost" size="icon" onClick={() => setShowMedicationPanel(false)}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          
+          {/* Medication cards */}
+        <div className="grid grid-cols-1 gap-4 overflow-y-auto mb-4">
             {medications.map((med, i) => (
-              <Card key={i} className="overflow-hidden bg-muted/5 border-primary/10">
+              <Card key={i} className={med.notFound ? "border-destructive/50" : ""}>
                 <CardHeader className="p-4 pb-2">
                   <div className="flex justify-between items-start">
                     <div>
                       <CardTitle className="text-base">{med.name}</CardTitle>
                       {med.genericName && (
-                        <CardDescription>Generic: {med.genericName}</CardDescription>
+                        <p className="text-xs text-muted-foreground">{med.genericName}</p>
                       )}
                     </div>
-                    {med.match_quality && (
-                      <Badge variant={
-                        med.match_quality === 'exact' ? 'default' : 
-                        med.match_quality === 'partial' ? 'secondary' : 'outline'
-                      } className="text-xs">
-                        {med.match_quality === 'exact' ? 'Exact Match' : 
-                          med.match_quality === 'partial' ? 'Partial Match' : 'Name Match'}
-                    </Badge>
-                    )}
-                    {med.notFound && (
-                      <Badge variant="destructive" className="text-xs">
-                        Not in stock
-                      </Badge>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <div className="grid grid-cols-2 gap-2 text-sm mb-2">
-                    <div>
-                      <p className="text-muted-foreground font-medium">Dosage:</p>
-                      <p>{med.dosage}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground font-medium">Frequency:</p>
-                      <p>{med.frequency}</p>
-                    </div>
-                    </div>
-                  
-                  <div className="flex justify-between items-center text-sm">
-                    <div className="font-semibold">
-                      GH₵{med.price?.toFixed(2)}
-                    </div>
-                    {typeof med.stock_quantity !== 'undefined' && (
-                      <div className={`text-xs ${med.stock_quantity > 10 ? 'text-green-600' : med.stock_quantity > 0 ? 'text-amber-600' : 'text-red-600'}`}>
-                        {med.stock_quantity > 10
-                          ? 'In Stock'
-                          : med.stock_quantity > 0
-                          ? `Low Stock (${med.stock_quantity})`
-                          : 'Out of Stock'}
+                    {!med.notFound && (
+                      <div className="text-right font-bold">
+                        GH₵{med.price?.toFixed(2)}
                       </div>
                     )}
                   </div>
+                </CardHeader>
+                <CardContent className="p-4 py-2 text-sm">
+                  <p>Dosage: {med.dosage}</p>
+                  <p>Duration: {med.frequency}</p>
+                  {med.stock_quantity !== undefined && (
+                    <p>Stock: {med.stock_quantity > 0 ? `${med.stock_quantity} available` : 'Out of stock'}</p>
+                  )}
+                  {med.notFound && (
+                    <Badge variant="destructive" className="mt-2">
+                      Not Available
+                    </Badge>
+                  )}
                 </CardContent>
-                
-                <CardFooter className="p-4 pt-0 flex gap-2">
-                  {med.prescription ? (
-                    <Button 
-                      className="w-full text-xs h-8" 
-                      variant="outline"
-                      onClick={() => generatePrescription(med)}
-                    >
-                      <FileText className="h-3 w-3 mr-1" />
-                      Request Prescription
+                <CardFooter className="p-4 pt-2">
+                  {med.notFound ? (
+                    <Button variant="outline" size="sm" className="w-full" disabled>
+                      <Ban className="h-3 w-3 mr-1" />
+                      Out of Stock
                     </Button>
                   ) : (
                     <Button 
-                      className="w-full text-xs h-8" 
-                      variant="default"
-                      disabled={!med.inStock || cart.some(item => item.name === med.name)}
+                      variant="default" 
+                      size="sm"
+                      className="w-full"
                       onClick={() => addToCart(med)}
+                      disabled={cart.some(item => item.name === med.name)}
                     >
                       <ShoppingCart className="h-3 w-3 mr-1" />
                       {cart.some(item => item.name === med.name) ? 'Added to Cart' : 'Add to Cart'}
@@ -883,7 +850,7 @@ Please take to your local pharmacy to fulfill this prescription.
               </div>
               
               {/* Render different actions based on availability */}
-              {hasUnavailableDrugs ? (
+              {allDrugsUnavailable ? (
                 <div className="space-y-3">
                   <Button 
                     className="w-full" 
@@ -894,24 +861,41 @@ Please take to your local pharmacy to fulfill this prescription.
                     Download Prescription
                   </Button>
                   <p className="text-xs text-muted-foreground text-center px-4">
-                    Some medications are not available in our system. Please download the prescription and visit your local pharmacy.
+                    None of the medications are available in our system. Please download the prescription and visit your local pharmacy.
                   </p>
                 </div>
               ) : (
                 <div className="relative group">
-            <Button 
-              className="w-full" 
+                  <Button 
+                    className="w-full" 
                     onClick={openCheckoutModal}
-                    disabled={cart.length === 0 || cart.some(item => !item.inStock) || purchaseStatus === 'success'}
-            >
-              <ShoppingCart className="h-4 w-4 mr-2" />
-              {purchaseStatus === 'success' ? 'Order Successfully Placed' : 'Proceed to Checkout'}
-            </Button>
-                  {(cart.length === 0 || cart.some(item => !item.inStock)) && purchaseStatus !== 'success' && (
+                    disabled={cart.length === 0 || allDrugsUnavailable || purchaseStatus === 'success'}
+                  >
+                    <ShoppingCart className="h-4 w-4 mr-2" />
+                    {purchaseStatus === 'success' ? 'Order Successfully Placed' : 'Proceed to Checkout'}
+                  </Button>
+                  
+                  {someDrugsUnavailable && (
+                    <div className="mt-2">
+                      <Button 
+                        className="w-full" 
+                        variant="outline"
+                        onClick={downloadPrescription}
+                      >
+                        <FileCheck className="h-4 w-4 mr-2" />
+                        Download Full Prescription
+                      </Button>
+                      <p className="text-xs text-muted-foreground text-center px-4 mt-1">
+                        Some medications are not available. You can still checkout with the available ones or download the full prescription.
+                      </p>
+                    </div>
+                  )}
+
+                  {(cart.length === 0 || allDrugsUnavailable) && purchaseStatus !== 'success' && (
                     <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity">
                       No drugs available for checkout. Please download your prescription instead.
-          </div>
-        )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -925,8 +909,10 @@ Please take to your local pharmacy to fulfill this prescription.
   const renderPrescriptionModal = () => {
     if (!medications || medications.length === 0) return null;
     
-    // Check if there are any unavailable drugs
-    const hasUnavailableDrugs = unavailableDrugs.length > 0;
+    // Check if all medications are unavailable
+    const allDrugsUnavailable = medications.length > 0 && medications.every(med => med.notFound);
+    // Check if some medications are unavailable but not all
+    const someDrugsUnavailable = unavailableDrugs.length > 0 && !allDrugsUnavailable;
     
     return (
       <Dialog open={prescriptionModalOpen} onOpenChange={setPrescriptionModalOpen}>
@@ -947,9 +933,11 @@ Please take to your local pharmacy to fulfill this prescription.
               </Button>
             </div>
             <DialogDescription>
-              {hasUnavailableDrugs 
-                ? "Some prescribed medications are not available in our system"
-                : "Your prescribed medications are available for purchase"}
+              {allDrugsUnavailable 
+                ? "None of the prescribed medications are available in our system"
+                : someDrugsUnavailable
+                  ? "Some prescribed medications are not available in our system"
+                  : "Your prescribed medications are available for purchase"}
             </DialogDescription>
               </div>
 
@@ -988,7 +976,7 @@ Please take to your local pharmacy to fulfill this prescription.
                 
             {/* Render different actions based on availability */}
             <div className="space-y-3">
-              {!hasUnavailableDrugs ? (
+              {!allDrugsUnavailable ? (
                 <Button 
                   className="w-full" 
                   onClick={openCheckoutModal}
@@ -1007,7 +995,18 @@ Please take to your local pharmacy to fulfill this prescription.
                   </Button>
               )}
               
-              {!hasUnavailableDrugs && (
+              {someDrugsUnavailable && (
+                <Button 
+                  className="w-full" 
+                  variant="outline"
+                  onClick={downloadPrescription}
+                >
+                  <FileCheck className="h-4 w-4 mr-2" />
+                  Download Full Prescription
+                </Button>
+              )}
+              
+              {!allDrugsUnavailable && !someDrugsUnavailable && (
                 <Button 
                   className="w-full" 
                   variant="outline"
