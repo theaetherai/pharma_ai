@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+*.env
+.env
+.env.*
+
+# Git
+.git
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Docker
+Dockerfile*
+docker-compose*
+.docker/
+.dockerignore
+
+# Node.js (for Next.js app)
+pharma_app/node_modules/
+pharma_app/.next/
+pharma_app/out/
+
+# Other
+.DS_Store
+pharma_app/
+
+# Ignore everything by default
+*
+
+# Only include specific files
+!requirements.txt
+!api_server.py
+!pharma_agent.py
+# Add any other specific files needed
+# !other_needed_file.py
+
+# Always exclude these
+.git/
+.env
+.env.*
+__pycache__/
+*.pyc 

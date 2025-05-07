@@ -1,0 +1,60 @@
+services:
+  - type: web
+    name: pharma-ai-webapp
+    runtime: node
+    plan: free
+    region: ohio
+    buildCommand: npm ci --legacy-peer-deps && npx prisma generate && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PYTHON_API_URL
+        fromService:
+          type: web
+          name: pharma-ai-agent
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: NEXTAUTH_URL
+        sync: false
+      - key: NEXTAUTH_SECRET
+        generateValue: true
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: NEXT_PUBLIC_CLERK_SIGN_IN_URL
+        value: "/sign-in"
+      - key: NEXT_PUBLIC_CLERK_SIGN_UP_URL
+        value: "/sign-up"
+      - key: NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL
+        value: "/dashboard"
+      - key: NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL
+        value: "/dashboard"
+      - key: DATABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY
+        sync: false
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          type: web
+          name: pharma-ai-agent
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: DIRECT_URL
+        sync: false
+    buildFilter:
+      paths:
+        - app/**
+        - components/**
+        - public/**
+        - styles/**
+        - lib/**
+        - prisma/**
+        - package.json
+        - package-lock.json
+        - next.config.mjs
+        - tsconfig.json
+        - middleware.ts
+        - tailwind.config.ts
+        - postcss.config.mjs 

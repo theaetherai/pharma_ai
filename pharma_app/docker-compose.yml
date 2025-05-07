@@ -1,0 +1,33 @@
+version: '3'
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=pharmaai
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - '3000:3000'
+    depends_on:
+      - db
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/pharmaai
+      # Add other environment variables as needed
+      # - CLERK_SECRET_KEY=your_clerk_secret_key
+      # - CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
+      # - PYTHON_API_URL=http://api:8000
+
+volumes:
+  postgres_data: 

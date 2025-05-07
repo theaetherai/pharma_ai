@@ -1,0 +1,16 @@
+{
+  "buildCommand": "SKIP_BUILD_DATASET=1 NEXT_PHASE=phase-production-build next build",
+  "installCommand": "npm install --legacy-peer-deps",
+  "framework": "nextjs",
+  "outputDirectory": ".next",
+  "env": {
+    "SKIP_BUILD_DATASET": "1",
+    "NEXT_PHASE": "phase-production-build"
+  },
+  "build": {
+    "env": {
+      "SKIP_BUILD_DATASET": "1",
+      "DATABASE_URL": "postgresql://dummy:dummy@localhost:5432/dummy?schema=public"
+    }
+  }
+} 

@@ -1,0 +1,68 @@
+version: '3'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.python
+    restart: always
+    ports:
+      - '8000:8000'
+    environment:
+      # Database connection
+      - DATABASE_URL=postgresql://neondb_owner:npg_f7kebLD2AmiB@ep-late-sunset-a587ahwr-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require
+      
+      # OpenAI client with Groq API
+      - OPENAI_API_KEY=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
+      - OPENAI_BASE_URL=https://api.groq.com/openai/v1
+      
+      # Still including these in case they're needed elsewhere
+      - GROQ_API_KEY=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
+      - GROQ_BASE_URL=https://api.groq.com/openai/v1
+      - LLM_MODEL=llama3-8b-8192
+    # For development: mount just the specific files
+    volumes:
+      - ./api_server.py:/app/api_server.py
+      - ./pharma_agent.py:/app/pharma_agent.py
+    networks:
+      - pharmaai-network
+
+  app:
+    build:
+      context: ./pharma_app
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - '3000:3000'
+    depends_on:
+      - api
+    environment:
+      # Database URL for Neon PostgreSQL
+      - DATABASE_URL=postgresql://neondb_owner:npg_f7kebLD2AmiB@ep-late-sunset-a587ahwr-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require
+      
+      # Clerk Authentication
+      - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_cHJvbXB0LWFhcmR2YXJrLTMyLmNsZXJrLmFjY291bnRzLmRldiQ
+      - CLERK_SECRET_KEY=sk_test_1JmmGgtIqwYNkUmEu3NY33mQ1s0pqJd6d9R5iqTRWJ
+      
+      # Clerk Routes
+      - NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
+      - NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
+      - NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/dashboard
+      - NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/dashboard
+      
+      # Clerk Session Configuration
+      - CLERK_DEVELOPMENT_SESSION_DURATION=2d
+      - CLERK_PRODUCTION_SESSION_DURATION=2d
+      
+      # Paystack payment processing
+      - PAYSTACK_SECRET_KEY=sk_test_402c5b61c47453af64b3334c35bb1b31d3e7b7ba
+      - NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=pk_test_cfe48b571b61246b1fddda8e7a144c51dbf16069
+      
+      # Python API URL
+      - PYTHON_API_URL=http://api:8000
+    networks:
+      - pharmaai-network
+
+networks:
+  pharmaai-network:
+    driver: bridge 

@@ -1,0 +1,303 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model for authentication
+model User {
+  id            String    @id @default(cuid())
+  clerkId       String?   @unique
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  password      String
+  image         String?
+  role          UserRole  @default(USER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  conversations   Conversation[]
+  medicalHistory  MedicalHistory?
+  sessions        Session[]
+  prescriptions   Prescription[]
+  payments        Payment[]
+  orders          Order[]
+  addresses       Address[]
+  
+  @@index([email])
+  @@index([clerkId])
+}
+
+// Address model for users
+model Address {
+  id            String    @id @default(cuid())
+  userId        String
+  addressLine1  String
+  addressLine2  String?
+  city          String
+  state         String
+  postalCode    String
+  country       String
+  isDefault     Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relations
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders        Order[]
+
+  @@index([userId])
+}
+
+// Session model for authentication
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Enum for user roles
+enum UserRole {
+  USER
+  ADMIN
+}
+
+// User Conversations
+model Conversation {
+  id        String   @id @default(cuid())
+  userId    String
+  message   String
+  response  String
+  diagnosis Json?    // Structured diagnosis, if requested
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relation to User
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Medical History
+model MedicalHistory {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  diagnosedWith   String[]
+  medications     String[]
+  allergies       String[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relation to User
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Prescription model
+model Prescription {
+  id           String    @id @default(cuid())
+  userId       String
+  medication   String
+  dosage       String
+  frequency    String
+  prescribedAt DateTime  @default(now())
+  endDate      DateTime
+  doctorName   String
+  refills      Int       @default(0)
+  status       PrescriptionStatus @default(ACTIVE)
+  instructions String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relation to User
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([medication])
+}
+
+// Enum for prescription status
+enum PrescriptionStatus {
+  ACTIVE
+  EXPIRED
+  COMPLETED
+  CANCELLED
+}
+
+// Medications Database (for general medication information)
+model Medication {
+  id                 String   @id @default(cuid())
+  name               String
+  genericName        String
+  description        String
+  dosageForm         String
+  typicalDosage      String
+  sideEffects        String[]
+  contraindications  String[]
+  interactions       String[]
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([name])
+}
+
+// Drug Inventory (for stock management and prescription matching)
+model Drug {
+  id             String   @id @default(cuid())
+  name           String
+  dosage         String
+  form           String
+  price          Float
+  stock_quantity Int
+  total_sold     Int      @default(0)
+  revenue        Float    @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  // Relations
+  orderItems     OrderItem[]
+
+  @@index([name])
+  @@index([dosage])
+  @@unique([name, dosage, form])
+}
+
+// Payment model for tracking payment transactions
+model Payment {
+  id              String   @id @default(cuid())
+  userId          String
+  reference       String   @unique
+  amount          Float
+  status          String
+  transactionDate DateTime
+  paymentMethod   String
+  currency        String
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order           Order?   @relation(fields: [orderId], references: [id])
+  orderId         String?
+
+  @@index([userId])
+  @@index([reference])
+}
+
+// Order model
+model Order {
+  id              String        @id @default(cuid())
+  userId          String
+  addressId       String
+  status          OrderStatus   @default(PENDING)
+  total           Float
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  // Relations
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  address         Address       @relation(fields: [addressId], references: [id])
+  items           OrderItem[]
+  payments        Payment[]
+  statusLogs      OrderStatusLog[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+// Order Items model for detailed items in an order
+model OrderItem {
+  id            String   @id @default(cuid())
+  orderId       String
+  drugId        String
+  quantity      Int
+  price         Float
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  drug          Drug     @relation(fields: [drugId], references: [id])
+
+  @@index([orderId])
+  @@index([drugId])
+}
+
+// Enum for order status
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+// Order Status Log model for tracking status changes
+model OrderStatusLog {
+  id            String      @id @default(cuid())
+  orderId       String
+  status        OrderStatus
+  notes         String?
+  createdAt     DateTime    @default(now())
+  
+  // Relation to Order
+  order         Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+// Notification model
+model Notification {
+  id            String             @id @default(cuid())
+  title         String
+  message       String
+  type          NotificationType
+  read          Boolean            @default(false)
+  userId        String?
+  createdAt     DateTime           @default(now())
+  metadata      Json?
+
+  @@index([userId])
+  @@index([type])
+  @@index([read])
+}
+
+// Enum for notification types
+enum NotificationType {
+  PAYMENT_SUCCESS
+  LOW_STOCK
+  ORDER_STATUS_CHANGE
+  SYSTEM
+}
+
+// Analytics model for storing aggregate data
+model Analytics {
+  id              String   @id @default(cuid())
+  totalRevenue    Float    @default(0)
+  totalOrders     Int      @default(0)
+  totalDrugsSold  Int      @default(0)
+  date            DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  dailyData       Json?
+
+  @@unique([date])
+}
