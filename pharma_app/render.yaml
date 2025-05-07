@@ -19,11 +19,11 @@ services:
       - key: NEXTAUTH_SECRET
         generateValue: true
       - key: CLERK_SECRET_KEY
-        sync: false
+        value: sk_test_1JmmGgtIqwYNkUmEu3NY33mQ1s0pqJd6d9R5iqTRWJ
       - key: CLERK_PUBLISHABLE_KEY
-        sync: false
+        value: pk_test_cHJvbXB0LWFhcmR2YXJrLTMyLmNsZXJrLmFjY291bnRzLmRldiQ
       - key: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-        sync: false
+        value: pk_test_cHJvbXB0LWFhcmR2YXJrLTMyLmNsZXJrLmFjY291bnRzLmRldiQ
       - key: NEXT_PUBLIC_CLERK_SIGN_IN_URL
         value: "/sign-in"
       - key: NEXT_PUBLIC_CLERK_SIGN_UP_URL
@@ -32,17 +32,29 @@ services:
         value: "/dashboard"
       - key: NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL
         value: "/dashboard"
+      - key: CLERK_PRODUCTION_SESSION_DURATION
+        value: "2d"
       - key: DATABASE_URL
-        sync: false
+        value: "postgresql://neondb_owner:npg_f7kebLD2AmiB@ep-late-sunset-a587ahwr-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require"
+      - key: DIRECT_URL
+        value: "postgresql://neondb_owner:npg_f7kebLD2AmiB@ep-late-sunset-a587ahwr-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require"
       - key: NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY
-        sync: false
+        value: pk_test_cfe48b571b61246b1fddda8e7a144c51dbf16069
+      - key: PAYSTACK_SECRET_KEY
+        value: sk_test_402c5b61c47453af64b3334c35bb1b31d3e7b7ba
       - key: NEXT_PUBLIC_API_URL
         fromService:
           type: web
           name: pharma-ai-agent
           envVarKey: RENDER_EXTERNAL_URL
-      - key: DIRECT_URL
-        sync: false
+      - key: NEXT_PHASE
+        value: production
+      - key: GROQ_API_KEY
+        value: "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"
+      - key: GROQ_BASE_URL
+        value: "https://api.groq.com/openai/v1"
+      - key: LLM_MODEL
+        value: "llama3-8b-8192"
     buildFilter:
       paths:
         - app/**

@@ -14,4 +14,8 @@ services:
       - key: LLM_MODEL
         value: llama3-8b-8192
       - key: DATABASE_URL
-        sync: false 
+        value: "postgresql://neondb_owner:npg_f7kebLD2AmiB@ep-late-sunset-a587ahwr-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require"
+      - key: GROQ_API_KEY
+        value: "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"
+      - key: GROQ_BASE_URL
+        value: https://api.groq.com/openai/v1 
