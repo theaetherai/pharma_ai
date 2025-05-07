@@ -30,7 +30,7 @@ services:
     plan: free
     region: ohio
     rootDir: pharma_app
-    buildCommand: "npm install --legacy-peer-deps jspdf jspdf-autotable p-retry node-cache idb html2canvas && npm ci --legacy-peer-deps --ignore-engines && npx prisma generate && npm run build -- --no-lint"
+    buildCommand: "npm install --legacy-peer-deps --production=false jspdf jspdf-autotable p-retry node-cache idb html2canvas && npm ci --legacy-peer-deps --ignore-engines --production=false && npx prisma generate && npm run build -- --no-lint"
     startCommand: npm start
     envVars:
       - key: NODE_ENV
