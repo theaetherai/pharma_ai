@@ -4,11 +4,15 @@ services:
     runtime: node
     plan: free
     region: ohio
-    buildCommand: npm ci --legacy-peer-deps && npx prisma generate && npm run build
+    buildCommand: "npm install --legacy-peer-deps jspdf jspdf-autotable p-retry node-cache idb html2canvas && npm ci --legacy-peer-deps --ignore-engines && npm uninstall react-paystack && npm install react-paystack@2.0.3 --save --legacy-peer-deps && npx prisma generate && npm run build -- --no-lint"
     startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
+      - key: SKIP_BUILD_DATASET
+        value: "1"
+      - key: NEXT_PHASE
+        value: phase-production-build
       - key: PYTHON_API_URL
         fromService:
           type: web
@@ -47,14 +51,14 @@ services:
           type: web
           name: pharma-ai-agent
           envVarKey: RENDER_EXTERNAL_URL
-      - key: NEXT_PHASE
-        value: production
       - key: GROQ_API_KEY
         value: "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"
       - key: GROQ_BASE_URL
         value: "https://api.groq.com/openai/v1"
       - key: LLM_MODEL
         value: "llama3-8b-8192"
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
     buildFilter:
       paths:
         - app/**
@@ -69,4 +73,4 @@ services:
         - tsconfig.json
         - middleware.ts
         - tailwind.config.ts
-        - postcss.config.mjs 
+        - postcss.config.mjs
