@@ -848,7 +848,7 @@ Please take to your local pharmacy to fulfill this prescription.
                   </p>
                   </div>
               </div>
-              
+
               {/* Render different actions based on availability */}
               {allDrugsUnavailable ? (
                 <div className="space-y-3">
@@ -1036,9 +1036,28 @@ Please take to your local pharmacy to fulfill this prescription.
     const { userId } = useAuth();
     const [deliveryAddress, setDeliveryAddress] = useState("");
     const [isAddressValid, setIsAddressValid] = useState(false);
+    const [userEmail, setUserEmail] = useState("customer@example.com");
     
-    // Use a default email if we can't get it from Clerk
-    const email = 'customer@example.com';
+    // Get user email from Clerk
+    useEffect(() => {
+      // Try to get user email from local storage or session if available
+      const storedEmail = localStorage.getItem('user-email');
+      if (storedEmail) {
+        setUserEmail(storedEmail);
+      } else {
+        // Try to fetch from Clerk's API
+        fetch('/api/auth/me')
+          .then(res => res.json())
+          .then(data => {
+            if (data.email) {
+              setUserEmail(data.email);
+              localStorage.setItem('user-email', data.email);
+            }
+          })
+          .catch(err => console.error('Error fetching user email:', err));
+      }
+    }, []);
+    
     const totalAmount = cart.reduce((sum, item) => sum + (item.price || 0), 0) + 5;
     
     // Validate address
@@ -1221,8 +1240,8 @@ Please take to your local pharmacy to fulfill this prescription.
               />
               <PaystackButton
                 amount={totalAmount}
-                email={email}
-                name={email || undefined}
+                email={userEmail}
+                name={userEmail || undefined}
                 className="flex-1"
                 disabled={!isAddressValid}
                 cart={cart.map(item => ({
