@@ -73,162 +73,164 @@ export default function PharmacyPage() {
   ];
 
   return (
-    <div className="w-full mx-auto py-6 px-0 sm:px-4 md:px-6">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-bold mb-2">Pharmacy</h1>
-            <p className="text-muted-foreground">
-              Order medications and view your order history
-            </p>
+    <div className="w-full h-full dashboard-scroll-content">
+      <div className="dashboard-page">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h1 className="text-2xl font-bold mb-2">Pharmacy</h1>
+              <p className="text-muted-foreground">
+                Order medications and view your order history
+              </p>
+            </div>
+            <Button asChild>
+              <a href="/dashboard/medications">
+                <Pill className="mr-2 h-4 w-4" />
+                Browse Medications
+              </a>
+            </Button>
           </div>
-          <Button asChild>
-            <a href="/dashboard/medications">
-              <Pill className="mr-2 h-4 w-4" />
-              Browse Medications
-            </a>
-          </Button>
-        </div>
 
-        <Tabs defaultValue="orders" className="space-y-6">
-          <TabsList className="mb-4">
-            <TabsTrigger value="orders">Order History</TabsTrigger>
-            <TabsTrigger value="cart">Cart ({cart.length})</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="orders" className="space-y-8">
-            <div className="mb-6">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search orders..."
-                  className="pl-10"
-                />
-              </div>
-            </div>
+          <Tabs defaultValue="orders" className="space-y-6">
+            <TabsList className="mb-4">
+              <TabsTrigger value="orders">Order History</TabsTrigger>
+              <TabsTrigger value="cart">Cart ({cart.length})</TabsTrigger>
+            </TabsList>
             
-            <div className="space-y-4">
-              {orderHistory.map((order) => (
-                <OrderCard key={order.id} order={order} />
-              ))}
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="cart" className="space-y-8">
-            {cart.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-                  <ShoppingBag className="h-8 w-8 text-muted-foreground" />
+            <TabsContent value="orders" className="space-y-8">
+              <div className="mb-6">
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search orders..."
+                    className="pl-10"
+                  />
                 </div>
-                <h3 className="text-lg font-medium mb-2">Your cart is empty</h3>
-                <p className="text-muted-foreground mb-4">
-                  Browse our medications and add items to your cart.
-                </p>
-                <Button asChild>
-                  <a href="/dashboard/medications">
-                    Browse Medications
-                  </a>
-                </Button>
               </div>
-            ) : (
-              <>
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Your Cart</CardTitle>
-                    <CardDescription>Review your items before checkout</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {cart.map((item, index) => (
-                        <div key={index} className="flex justify-between items-start pb-4 border-b last:border-0 last:pb-0">
-                          <div className="flex items-start gap-3">
-                            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                              <Pill className="h-5 w-5 text-primary" />
-                            </div>
-                            <div>
-                              <div className="font-medium">{item.name}</div>
-                              <div className="text-sm text-muted-foreground">
-                                Quantity: {item.quantity}
+              
+              <div className="space-y-4">
+                {orderHistory.map((order) => (
+                  <OrderCard key={order.id} order={order} />
+                ))}
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="cart" className="space-y-8">
+              {cart.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                    <ShoppingBag className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-lg font-medium mb-2">Your cart is empty</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Browse our medications and add items to your cart.
+                  </p>
+                  <Button asChild>
+                    <a href="/dashboard/medications">
+                      Browse Medications
+                    </a>
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Your Cart</CardTitle>
+                      <CardDescription>Review your items before checkout</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {cart.map((item, index) => (
+                          <div key={index} className="flex justify-between items-start pb-4 border-b last:border-0 last:pb-0">
+                            <div className="flex items-start gap-3">
+                              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                                <Pill className="h-5 w-5 text-primary" />
                               </div>
-                              {item.prescription && (
-                                <Badge variant="outline" className="mt-1">
-                                  Prescription Required
-                                </Badge>
-                              )}
+                              <div>
+                                <div className="font-medium">{item.name}</div>
+                                <div className="text-sm text-muted-foreground">
+                                  Quantity: {item.quantity}
+                                </div>
+                                {item.prescription && (
+                                  <Badge variant="outline" className="mt-1">
+                                    Prescription Required
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-medium">${item.price.toFixed(2)}</div>
+                              <Button variant="ghost" size="sm" className="text-red-500 h-7 px-2 text-xs">
+                                Remove
+                              </Button>
                             </div>
                           </div>
-                          <div className="text-right">
-                            <div className="font-medium">${item.price.toFixed(2)}</div>
-                            <Button variant="ghost" size="sm" className="text-red-500 h-7 px-2 text-xs">
-                              Remove
-                            </Button>
+                        ))}
+                      </div>
+                    </CardContent>
+                    <CardFooter className="flex flex-col space-y-4">
+                      <div className="w-full flex justify-between items-center pb-4 border-b">
+                        <div className="font-medium">Subtotal</div>
+                        <div className="font-medium">
+                          ${cart.reduce((total, item) => total + item.price * item.quantity, 0).toFixed(2)}
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center w-full">
+                        <Button variant="outline">Continue Shopping</Button>
+                        <Button>
+                          <CreditCard className="mr-2 h-4 w-4" />
+                          Checkout
+                        </Button>
+                      </div>
+                    </CardFooter>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Delivery Options</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-start gap-3 p-3 border rounded-md bg-muted/20">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                          <Home className="h-4 w-4 text-primary" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-medium">Home Delivery</div>
+                          <div className="text-sm text-muted-foreground">
+                            123 Main St, Apt 4B, New York, NY 10001
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                  <CardFooter className="flex flex-col space-y-4">
-                    <div className="w-full flex justify-between items-center pb-4 border-b">
-                      <div className="font-medium">Subtotal</div>
-                      <div className="font-medium">
-                        ${cart.reduce((total, item) => total + item.price * item.quantity, 0).toFixed(2)}
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center w-full">
-                      <Button variant="outline">Continue Shopping</Button>
-                      <Button>
-                        <CreditCard className="mr-2 h-4 w-4" />
-                        Checkout
-                      </Button>
-                    </div>
-                  </CardFooter>
-                </Card>
-                
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Delivery Options</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-start gap-3 p-3 border rounded-md bg-muted/20">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                        <Home className="h-4 w-4 text-primary" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="font-medium">Home Delivery</div>
-                        <div className="text-sm text-muted-foreground">
-                          123 Main St, Apt 4B, New York, NY 10001
+                        <div className="text-sm font-medium">
+                          2-3 Days
                         </div>
                       </div>
-                      <div className="text-sm font-medium">
-                        2-3 Days
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-start gap-3 p-3 border rounded-md">
-                      <div className="w-8 h-8 rounded-full bg-muted/30 flex items-center justify-center">
-                        <Package className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="font-medium">Pharmacy Pickup</div>
-                        <div className="text-sm text-muted-foreground">
-                          PharmaAI Store, 456 Health St, New York, NY 10002
+                      
+                      <div className="flex items-start gap-3 p-3 border rounded-md">
+                        <div className="w-8 h-8 rounded-full bg-muted/30 flex items-center justify-center">
+                          <Package className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-medium">Pharmacy Pickup</div>
+                          <div className="text-sm text-muted-foreground">
+                            PharmaAI Store, 456 Health St, New York, NY 10002
+                          </div>
+                        </div>
+                        <div className="text-sm font-medium">
+                          Same Day
                         </div>
                       </div>
-                      <div className="text-sm font-medium">
-                        Same Day
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </>
-            )}
-          </TabsContent>
-        </Tabs>
-      </motion.div>
+                    </CardContent>
+                  </Card>
+                </>
+              )}
+            </TabsContent>
+          </Tabs>
+        </motion.div>
+      </div>
     </div>
   );
 }

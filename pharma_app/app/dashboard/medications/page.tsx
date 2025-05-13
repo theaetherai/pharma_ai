@@ -110,89 +110,91 @@ export default function MedicationsPage() {
   });
 
   return (
-    <div className="dashboard-section">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <div className="dashboard-header">
-          <div>
-            <h1 className="text-2xl font-bold mb-2">Medications Database</h1>
-            <p className="text-muted-foreground">
-              Browse and search for medications and supplements
-            </p>
-          </div>
-          <Button>
-            <ShoppingCart className="mr-2 h-4 w-4" />
-            View Cart
-          </Button>
-        </div>
-
-        <div className="flex flex-col md:flex-row gap-4 mb-6">
-          <div className="relative flex-grow">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search medications..."
-              className="pl-10"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          
-          <div className="flex flex-col sm:flex-row gap-3">
-            <Select defaultValue="all">
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <ListFilter className="mr-2 h-4 w-4" />
-                <SelectValue placeholder="Category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                <SelectItem value="antibiotics">Antibiotics</SelectItem>
-                <SelectItem value="pain-relievers">Pain Relievers</SelectItem>
-                <SelectItem value="blood-pressure">Blood Pressure</SelectItem>
-                <SelectItem value="allergy">Allergy</SelectItem>
-                <SelectItem value="diabetes">Diabetes</SelectItem>
-              </SelectContent>
-            </Select>
-            
-            <Button variant="outline" size="icon">
-              <Filter className="h-4 w-4" />
+    <div className="w-full h-full dashboard-scroll-content">
+      <div className="dashboard-page">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <div className="dashboard-header">
+            <div>
+              <h1 className="text-2xl font-bold mb-2">Medications Database</h1>
+              <p className="text-muted-foreground">
+                Browse and search for medications and supplements
+              </p>
+            </div>
+            <Button>
+              <ShoppingCart className="mr-2 h-4 w-4" />
+              View Cart
             </Button>
           </div>
-        </div>
-        
-        <div className="flex items-center gap-6 mb-6">
-          <div className="flex items-center gap-2">
-            <Checkbox 
-              id="prescription" 
-              checked={filterPrescription}
-              onCheckedChange={(checked) => setFilterPrescription(checked as boolean)}
-            />
-            <Label htmlFor="prescription">Prescription Only</Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <Checkbox 
-              id="otc" 
-              checked={filterOTC}
-              onCheckedChange={(checked) => setFilterOTC(checked as boolean)}
-            />
-            <Label htmlFor="otc">Over the Counter</Label>
-          </div>
-        </div>
 
-        <div className="dashboard-grid">
-          {filteredMedications.length > 0 ? (
-            filteredMedications.map((medication) => (
-              <MedicationCard key={medication.id} medication={medication} />
-            ))
-          ) : (
-            <div className="text-center py-8 col-span-full">
-              <p className="text-muted-foreground">No medications found matching your criteria.</p>
+          <div className="flex flex-col md:flex-row gap-4 mb-6">
+            <div className="relative flex-grow">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search medications..."
+                className="pl-10"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
-          )}
-        </div>
-      </motion.div>
+            
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Select defaultValue="all">
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <ListFilter className="mr-2 h-4 w-4" />
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  <SelectItem value="antibiotics">Antibiotics</SelectItem>
+                  <SelectItem value="pain-relievers">Pain Relievers</SelectItem>
+                  <SelectItem value="blood-pressure">Blood Pressure</SelectItem>
+                  <SelectItem value="allergy">Allergy</SelectItem>
+                  <SelectItem value="diabetes">Diabetes</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <Button variant="outline" size="icon">
+                <Filter className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-6 mb-6">
+            <div className="flex items-center gap-2">
+              <Checkbox 
+                id="prescription" 
+                checked={filterPrescription}
+                onCheckedChange={(checked) => setFilterPrescription(checked as boolean)}
+              />
+              <Label htmlFor="prescription">Prescription Only</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox 
+                id="otc" 
+                checked={filterOTC}
+                onCheckedChange={(checked) => setFilterOTC(checked as boolean)}
+              />
+              <Label htmlFor="otc">Over the Counter</Label>
+            </div>
+          </div>
+
+          <div className="dashboard-grid">
+            {filteredMedications.length > 0 ? (
+              filteredMedications.map((medication) => (
+                <MedicationCard key={medication.id} medication={medication} />
+              ))
+            ) : (
+              <div className="text-center py-8 col-span-full">
+                <p className="text-muted-foreground">No medications found matching your criteria.</p>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      </div>
     </div>
   );
 }

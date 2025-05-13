@@ -1,6 +1,5 @@
 import { Suspense, lazy } from 'react';
 import { Sidebar } from "@/components/sidebar";
-import { SidebarMobile } from "@/components/sidebar-mobile";
 import { currentUser } from "@clerk/nextjs/server";
 import { auth } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
@@ -80,15 +79,8 @@ export default async function DashboardLayout({
 
     // Pass the extracted user data to the client component
     return (
-      <div className="flex h-screen overflow-hidden bg-gradient-to-b from-background to-secondary/10">
-
-
-        {/* Mobile sidebar */}
-        <div className="md:hidden">
-          <SidebarMobile />
-        </div>
-
-        {/* Main content */}
+      <div className="flex h-screen w-full overflow-hidden bg-gradient-to-b from-background to-secondary/10">
+        {/* Main content - SidebarMobile is now handled in DashboardClient */}
         <DashboardClient userInfo={userInfo}>
           {children}
         </DashboardClient>

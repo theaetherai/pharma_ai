@@ -147,88 +147,90 @@ export default function PrescriptionsPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto py-6">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-bold mb-2">Your Prescriptions</h1>
-            <p className="text-muted-foreground">
-              View and manage your prescription medications
-            </p>
+    <div className="w-full h-full dashboard-scroll-content">
+      <div className="dashboard-page">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h1 className="text-2xl font-bold mb-2">Your Prescriptions</h1>
+              <p className="text-muted-foreground">
+                View and manage your prescription medications
+              </p>
+            </div>
+            <Button onClick={handleTopRefillButton}>
+              <FilePlus className="mr-2 h-4 w-4" />
+              Request Refill
+            </Button>
           </div>
-          <Button onClick={handleTopRefillButton}>
-            <FilePlus className="mr-2 h-4 w-4" />
-            Request Refill
-          </Button>
-        </div>
 
-        <div className="mb-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search prescriptions..."
-              className="pl-10"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+          <div className="mb-6">
+            <div className="relative">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search prescriptions..."
+                className="pl-10"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
           </div>
-        </div>
 
-        {isLoading ? (
-          <div className="flex items-center justify-center py-24">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <span className="ml-3 text-lg">Loading prescriptions...</span>
-          </div>
-        ) : (
-          <Tabs defaultValue="active" className="space-y-6">
-            <TabsList className="mb-4">
-              <TabsTrigger value="active">
-                Active Prescriptions {filteredActive.length > 0 && `(${filteredActive.length})`}
-              </TabsTrigger>
-              <TabsTrigger value="past">
-                Past Prescriptions {filteredPast.length > 0 && `(${filteredPast.length})`}
-              </TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="active" className="space-y-4">
-              {filteredActive.length === 0 ? (
-                <div className="text-center py-12 bg-muted/20 rounded-lg">
-                  <p className="text-muted-foreground">No active prescriptions found.</p>
-                </div>
-              ) : (
-                filteredActive.map((prescription) => (
-                  <PrescriptionCard 
-                    key={prescription.id} 
-                    prescription={prescription} 
-                    status="active" 
-                    onRequestRefill={requestRefill}
-                  />
-                ))
-              )}
-            </TabsContent>
-            
-            <TabsContent value="past" className="space-y-4">
-              {filteredPast.length === 0 ? (
-                <div className="text-center py-12 bg-muted/20 rounded-lg">
-                  <p className="text-muted-foreground">No past prescriptions found.</p>
-                </div>
-              ) : (
-                filteredPast.map((prescription) => (
-                  <PrescriptionCard 
-                    key={prescription.id} 
-                    prescription={prescription} 
-                    status="past" 
-                  />
-                ))
-              )}
-            </TabsContent>
-          </Tabs>
-        )}
-      </motion.div>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-24">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <span className="ml-3 text-lg">Loading prescriptions...</span>
+            </div>
+          ) : (
+            <Tabs defaultValue="active" className="space-y-6">
+              <TabsList className="mb-4">
+                <TabsTrigger value="active">
+                  Active Prescriptions {filteredActive.length > 0 && `(${filteredActive.length})`}
+                </TabsTrigger>
+                <TabsTrigger value="past">
+                  Past Prescriptions {filteredPast.length > 0 && `(${filteredPast.length})`}
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="active" className="space-y-4">
+                {filteredActive.length === 0 ? (
+                  <div className="text-center py-12 bg-muted/20 rounded-lg">
+                    <p className="text-muted-foreground">No active prescriptions found.</p>
+                  </div>
+                ) : (
+                  filteredActive.map((prescription) => (
+                    <PrescriptionCard 
+                      key={prescription.id} 
+                      prescription={prescription} 
+                      status="active" 
+                      onRequestRefill={requestRefill}
+                    />
+                  ))
+                )}
+              </TabsContent>
+              
+              <TabsContent value="past" className="space-y-4">
+                {filteredPast.length === 0 ? (
+                  <div className="text-center py-12 bg-muted/20 rounded-lg">
+                    <p className="text-muted-foreground">No past prescriptions found.</p>
+                  </div>
+                ) : (
+                  filteredPast.map((prescription) => (
+                    <PrescriptionCard 
+                      key={prescription.id} 
+                      prescription={prescription} 
+                      status="past" 
+                    />
+                  ))
+                )}
+              </TabsContent>
+            </Tabs>
+          )}
+        </motion.div>
+      </div>
     </div>
   );
 }

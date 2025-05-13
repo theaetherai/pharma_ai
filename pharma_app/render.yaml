@@ -59,6 +59,8 @@ services:
         value: "llama3-8b-8192"
       - key: NEXT_TELEMETRY_DISABLED
         value: "1"
+      - key: OPENAI_API_KEY
+        value: "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"
     buildFilter:
       paths:
         - app/**

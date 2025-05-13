@@ -1,80 +1,79 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@clerk/nextjs";
+import { Prisma } from '@prisma/client';
 
-export async function GET(req: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    // Get authenticated user ID from Clerk
-    const { userId: clerkUserId } = auth();
+    // Get authentication info
+    const { userId } = auth();
     
-    // If no user ID, the request is unauthorized
-    if (!clerkUserId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // Get the user ID from the query parameters or use the authenticated user ID
+    const searchParams = request.nextUrl.searchParams;
+    const chatUserId = searchParams.get('userId') || userId || 'anonymous-user';
+    
+    // For demo/anonymous users, return empty result
+    const isAnonymousUser = chatUserId.startsWith('user-') || chatUserId === 'anonymous-user';
+    if (isAnonymousUser) {
+      return NextResponse.json({
+        success: true,
+        diagnosis: null,
+        message: 'No diagnosis found for anonymous user'
+      });
     }
-
-    // Find user in database by clerkId
-    const user = await db.user.findUnique({
-      where: { clerkId: clerkUserId }
+    
+    // Find the user in the database
+    const user = await db.user.findFirst({
+      where: {
+        OR: [
+          { id: chatUserId },
+          { clerkId: chatUserId }
+        ]
+      }
     });
-
-    // If user doesn't exist in our database
+    
+    // If user not found, return empty result
     if (!user) {
-      console.log(`User with Clerk ID ${clerkUserId} not found in database`);
-      return NextResponse.json({ success: false, message: "User not found" });
-    }
-
-    // Get the latest diagnosis
-    const latestDiagnosis = await db.conversation.findFirst({
-      where: { 
-        userId: user.id,
-        message: "diagnose"
-      },
-      orderBy: { 
-        createdAt: 'desc' 
-      },
-      select: {
-        diagnosis: true,
-        createdAt: true
-      }
-    });
-
-    if (!latestDiagnosis || !latestDiagnosis.diagnosis) {
-      return NextResponse.json({ 
-        success: false,
-        message: "No diagnosis found"
+      return NextResponse.json({
+        success: true,
+        diagnosis: null,
+        message: 'User not found in database'
       });
     }
-
-    // Extract the diagnosis from the diagnosis field (which contains the full API response)
-    const diagnosisData = latestDiagnosis.diagnosis;
     
-    // Handle different response formats
-    let extractedDiagnosis;
-    if (diagnosisData && typeof diagnosisData === 'object') {
-      if ('diagnosis' in diagnosisData) {
-        // If it's the API response containing diagnosis field
-        extractedDiagnosis = diagnosisData.diagnosis;
-      } else {
-        // If it's already the diagnosis object directly
-        extractedDiagnosis = diagnosisData;
-      }
-    } else {
-      return NextResponse.json({ 
-        success: false,
-        message: "Invalid diagnosis format in database"
+    // Fetch the user's latest conversation with diagnosis from the database
+    const latestConversation = await db.conversation.findFirst({
+      where: { 
+        userId: user.id, // Use the actual user ID from the database
+        diagnosis: {
+          not: Prisma.DbNull
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    if (!latestConversation || !latestConversation.diagnosis) {
+      return NextResponse.json({
+        success: true,
+        diagnosis: null,
+        message: 'No diagnosis found for this user'
       });
     }
-
-    return NextResponse.json({ 
+    
+    return NextResponse.json({
       success: true,
-      diagnosis: extractedDiagnosis,
-      timestamp: latestDiagnosis.createdAt
+      diagnosis: latestConversation.diagnosis,
+      diagnosisId: latestConversation.id,
+      createdAt: latestConversation.createdAt
     });
   } catch (error) {
-    console.error("Error fetching latest diagnosis:", error);
-    return NextResponse.json({ 
-      error: "Failed to fetch latest diagnosis",
-      details: error instanceof Error ? error.message : "Unknown error" 
-    }, { status: 500 });
+    console.error('Error fetching latest diagnosis:', error);
+    return NextResponse.json(
+      { 
+        success: false,
+        error: `Error fetching latest diagnosis: ${error}` 
+      },
+      { status: 500 }
+    );
   }
 } 

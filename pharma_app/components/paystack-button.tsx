@@ -33,6 +33,7 @@ interface PaystackButtonProps {
   cart?: CartItem[];
   deliveryAddressId?: string;
   deliveryAddress?: string;
+  idempotencyKey?: string | null;
   onSuccess: (data: any) => void;
   onCancel: () => void;
   onCloseCheckout?: () => void;
@@ -48,6 +49,7 @@ export function PaystackButton({
   cart = [],
   deliveryAddressId,
   deliveryAddress,
+  idempotencyKey,
   onSuccess,
   onCancel,
   onCloseCheckout,
@@ -299,12 +301,31 @@ export function PaystackButton({
       
       try {
         const initializePayment = usePaystackPayment({
-          reference: (new Date()).getTime().toString(),
+          reference: idempotencyKey || (new Date()).getTime().toString(),
           email: userEmail,
           amount: Math.round(amount * 100),
           publicKey,
-          label: name,
+          label: name || userEmail,
           currency: 'GHS', // Changed from GHS to NGN for Nigerian currency
+          metadata: {
+            custom_fields: [
+              {
+                display_name: "Customer Email",
+                variable_name: "customer_email",
+                value: userEmail
+              },
+              {
+                display_name: "Customer Name",
+                variable_name: "customer_name",
+                value: name || userEmail
+              },
+              {
+                display_name: "Order ID",
+                variable_name: "order_idempotency_key",
+                value: idempotencyKey || ''
+              }
+            ]
+          }
         });
 
         if (!initializePayment) {

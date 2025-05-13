@@ -113,65 +113,67 @@ export default function DoctorsPage() {
   });
 
   return (
-    <div className="dashboard-section">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <div className="dashboard-header">
-          <div>
-            <h1 className="text-2xl font-bold mb-2">Find a Doctor</h1>
-            <p className="text-muted-foreground">
-              Browse our network of specialists and primary care physicians
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-col md:flex-row gap-4 mb-6">
-          <div className="relative flex-grow">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by name or specialty..."
-              className="pl-10"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-        </div>
-        
-        <div className="flex flex-wrap gap-2 mb-6">
-          <Button 
-            variant={selectedSpecialty === null ? "default" : "outline"}
-            size="sm"
-            onClick={() => setSelectedSpecialty(null)}
-          >
-            All Specialties
-          </Button>
-          {specialties.map(specialty => (
-            <Button
-              key={specialty}
-              variant={selectedSpecialty === specialty ? "default" : "outline"}
-              size="sm"
-              onClick={() => setSelectedSpecialty(specialty)}
-            >
-              {specialty}
-            </Button>
-          ))}
-        </div>
-
-        <div className="dashboard-grid-2">
-          {filteredDoctors.length > 0 ? (
-            filteredDoctors.map((doctor) => (
-              <DoctorCard key={doctor.id} doctor={doctor} />
-            ))
-          ) : (
-            <div className="text-center py-8 col-span-full">
-              <p className="text-muted-foreground">No doctors found matching your criteria.</p>
+    <div className="w-full h-full dashboard-scroll-content">
+      <div className="dashboard-page">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <div className="dashboard-header">
+            <div>
+              <h1 className="text-2xl font-bold mb-2">Find a Doctor</h1>
+              <p className="text-muted-foreground">
+                Browse our network of specialists and primary care physicians
+              </p>
             </div>
-          )}
-        </div>
-      </motion.div>
+          </div>
+
+          <div className="flex flex-col md:flex-row gap-4 mb-6">
+            <div className="relative flex-grow">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name or specialty..."
+                className="pl-10"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+          </div>
+          
+          <div className="flex flex-wrap gap-2 mb-6">
+            <Button 
+              variant={selectedSpecialty === null ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSelectedSpecialty(null)}
+            >
+              All Specialties
+            </Button>
+            {specialties.map(specialty => (
+              <Button
+                key={specialty}
+                variant={selectedSpecialty === specialty ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSelectedSpecialty(specialty)}
+              >
+                {specialty}
+              </Button>
+            ))}
+          </div>
+
+          <div className="dashboard-grid-2">
+            {filteredDoctors.length > 0 ? (
+              filteredDoctors.map((doctor) => (
+                <DoctorCard key={doctor.id} doctor={doctor} />
+              ))
+            ) : (
+              <div className="text-center py-8 col-span-full">
+                <p className="text-muted-foreground">No doctors found matching your criteria.</p>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      </div>
     </div>
   );
 }

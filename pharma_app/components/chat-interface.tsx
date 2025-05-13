@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import "@/lib/resilience-init"; // Import for side effects only
 import { metrics, logger } from "@/lib/monitoring";
 import { isNetworkError } from "@/lib/api-helpers";
+import type { ChatMessage } from "@/hooks/use-pharma-chat"; // Import from hooks not api
 
 // New type for medication with purchase options
 type MedicationWithPurchase = {
@@ -68,6 +69,7 @@ export function ChatInterface() {
     clearChat,
     isLoadingHistory,
     resetChat,
+    setMessages,
   } = usePharmaChat();
   
   const [unavailableDrugs, setUnavailableDrugs] = useState<MedicationWithPurchase[]>([]);
@@ -84,6 +86,53 @@ export function ChatInterface() {
   const [prescriptionModalOpen, setPrescriptionModalOpen] = useState(false);
   
   const notificationsRef = useRef<{ addNotification: (message: string) => void } | null>(null);
+  
+  // New state for the latest order ID 
+  const [latestOrderId, setLatestOrderId] = useState<string | null>(null);
+  const [orderPlaced, setOrderPlaced] = useState(false);
+  const [orderPaymentComplete, setOrderPaymentComplete] = useState(false);
+  const [orderIdempotencyKey, setOrderIdempotencyKey] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState("customer@example.com");
+  
+  // Check for existing payment session on mount
+  useEffect(() => {
+    const storedOrderId = sessionStorage.getItem('pharmaai-order-id');
+    const storedIdempotencyKey = sessionStorage.getItem('pharmaai-idempotency-key');
+    const storedPaymentComplete = sessionStorage.getItem('pharmaai-payment-complete');
+    
+    if (storedOrderId) {
+      setLatestOrderId(storedOrderId);
+      setOrderPlaced(true);
+    }
+    
+    if (storedIdempotencyKey) {
+      setOrderIdempotencyKey(storedIdempotencyKey);
+    }
+    
+    if (storedPaymentComplete === 'true') {
+      setOrderPaymentComplete(true);
+    }
+  }, []);
+  
+  // Fetch user email on component mount
+  useEffect(() => {
+    // Try to get user email from local storage or session if available
+    const storedEmail = localStorage.getItem('user-email');
+    if (storedEmail) {
+      setUserEmail(storedEmail);
+    } else {
+      // Try to fetch from Clerk's API
+      fetch('/api/auth/me')
+        .then(res => res.json())
+        .then(data => {
+          if (data.email) {
+            setUserEmail(data.email);
+            localStorage.setItem('user-email', data.email);
+          }
+        })
+        .catch(err => console.error('Error fetching user email:', err));
+    }
+  }, []);
   
   // Persist unavailable drugs in localStorage to preserve state on refresh
   useEffect(() => {
@@ -217,6 +266,21 @@ export function ChatInterface() {
 
   // Process purchase with checkout page
   const openCheckoutModal = () => {
+    // Don't allow opening checkout if payment is already complete
+    if (orderPaymentComplete) {
+      toast.info("Your order has already been paid for. You can view order details instead.");
+      viewOrderDetails();
+      return;
+    }
+    
+    // Generate idempotency key for this order if none exists
+    if (!orderIdempotencyKey) {
+      // Create a UUID-like string for idempotency
+      const newKey = `order_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      setOrderIdempotencyKey(newKey);
+      sessionStorage.setItem('pharmaai-idempotency-key', newKey);
+    }
+    
     // Ensure each item in the cart has a drugId field based on their id
     const cartWithDrugIds = cart.map(item => ({
       ...item,
@@ -404,6 +468,17 @@ Please take to your local pharmacy to fulfill this prescription.
     setPrescriptionItem(null);
     setCheckoutOpen(false);
     setPurchaseStatus('idle');
+    setOrderPlaced(false);
+    setLatestOrderId(null);
+    setOrderPaymentComplete(false);
+    setOrderIdempotencyKey(null);
+    
+    // Clear payment-related session storage
+    sessionStorage.removeItem('pharmaai-order-id');
+    sessionStorage.removeItem('pharmaai-idempotency-key');
+    sessionStorage.removeItem('pharmaai-payment-complete');
+    
+    // Don't reset userEmail as it's needed for authentication
     
     // Clear local storage
     localStorage.removeItem('pharmaai-unavailable-drugs');
@@ -653,46 +728,63 @@ Please take to your local pharmacy to fulfill this prescription.
 
   // Updated UI for rendering messages with animations
   const renderMessages = () => {
-    return messages.map((message, index) => {
-      const isUser = message.role === "user";
-      const content = cleanMessageContent(message.content);
-      const formattedContent = processAssistantResponse(content);
-      
-      return (
-        <motion.div
-          key={index}
-          className={`flex items-start mb-4 ${isUser ? "justify-end" : "justify-start"}`}
-          initial="hidden"
-          animate="visible"
-          exit="exit"
-          variants={messageVariants}
-          layout
-        >
-          <div className={`flex ${isUser ? "flex-row-reverse" : "flex-row"} max-w-[85%] gap-3`}>
-            <div className="flex-shrink-0 mt-1">
-              {isUser ? (
-                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                  <UserRound size={16} className="text-primary" />
-                </div>
-              ) : (
-                <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center">
-                  <Bot size={16} className="text-accent" />
-                </div>
-              )}
-            </div>
-            <div
-              className={`rounded-2xl px-4 py-3 shadow-sm ${
-                isUser
-                  ? "bg-primary text-primary-foreground rounded-tr-none"
-                  : "bg-card rounded-tl-none border border-border"
-              }`}
-            >
-              <div className="text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: formatMessageContent(formattedContent) }} />
+    // Only display the most recent 15 messages
+    const recentMessages = messages.slice(-15);
+    const hasOlderMessages = messages.length > 15;
+    
+    return (
+      <>
+        {hasOlderMessages && (
+          <div className="flex justify-center mb-6">
+            <div className="bg-muted/50 text-muted-foreground rounded-full px-3 py-1 text-xs">
+              Showing most recent {recentMessages.length} of {messages.length} messages
             </div>
           </div>
-        </motion.div>
-      );
-    });
+        )}
+        
+        {/* Messages are already in chronological order (oldest to newest) */}
+        {recentMessages.map((message, index) => {
+          const isUser = message.role === "user";
+          const content = cleanMessageContent(message.content);
+          const formattedContent = processAssistantResponse(content);
+          
+          return (
+            <motion.div
+              key={index}
+              className={`flex items-start mb-4 ${isUser ? "justify-end" : "justify-start"}`}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              variants={messageVariants}
+              layout
+            >
+              <div className={`flex ${isUser ? "flex-row-reverse" : "flex-row"} max-w-[85%] gap-3`}>
+                <div className="flex-shrink-0 mt-1">
+                  {isUser ? (
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                      <UserRound size={16} className="text-primary" />
+                    </div>
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center">
+                      <Bot size={16} className="text-accent" />
+                    </div>
+                  )}
+                </div>
+                <div
+                  className={`rounded-2xl px-4 py-3 shadow-sm ${
+                    isUser
+                      ? "bg-primary text-primary-foreground rounded-tr-none"
+                      : "bg-card rounded-tl-none border border-border"
+                  }`}
+                >
+                  <div className="text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: formatMessageContent(formattedContent) }} />
+                </div>
+              </div>
+            </motion.div>
+          );
+        })}
+      </>
+    );
   };
   
   // Enhanced formatting for message content
@@ -757,6 +849,20 @@ Please take to your local pharmacy to fulfill this prescription.
     </motion.div>
   );
 
+  // Function to view order details
+  const viewOrderDetails = () => {
+    if (!latestOrderId) {
+      toast.error("Order details not available");
+      return;
+    }
+    
+    // Show order details in a modal
+    toast.info(`Viewing Order #${latestOrderId} details`);
+    
+    // Open the checkout modal with order details
+    setCheckoutOpen(true);
+  };
+
   // Render medication panel
   const renderMedicationPanel = () => {
     // Check if all medications are unavailable
@@ -766,13 +872,13 @@ Please take to your local pharmacy to fulfill this prescription.
     
     return (
       <motion.div
-        className="flex flex-col h-full"
+        className="flex flex-col h-full w-full"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 20 }}
         transition={{ duration: 0.3 }}
       >
-        <div className="p-4 flex flex-col h-full space-y-4">
+        <div className="p-2 sm:p-4 flex flex-col h-full space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold">Prescribed Medications</h3>
             <Button variant="ghost" size="icon" onClick={() => setShowMedicationPanel(false)}>
@@ -781,7 +887,7 @@ Please take to your local pharmacy to fulfill this prescription.
           </div>
           
           {/* Medication cards */}
-        <div className="grid grid-cols-1 gap-4 overflow-y-auto mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto mb-4">
             {medications.map((med, i) => (
               <Card key={i} className={med.notFound ? "border-destructive/50" : ""}>
                 <CardHeader className="p-4 pb-2">
@@ -819,9 +925,7 @@ Please take to your local pharmacy to fulfill this prescription.
                     </Button>
                   ) : (
                     <Button 
-                      variant="default" 
-                      size="sm"
-                      className="w-full"
+                      className="w-full" 
                       onClick={() => addToCart(med)}
                       disabled={cart.some(item => item.name === med.name)}
                     >
@@ -868,11 +972,11 @@ Please take to your local pharmacy to fulfill this prescription.
                 <div className="relative group">
                   <Button 
                     className="w-full" 
-                    onClick={openCheckoutModal}
-                    disabled={cart.length === 0 || allDrugsUnavailable || purchaseStatus === 'success'}
+                    onClick={orderPlaced ? viewOrderDetails : openCheckoutModal}
+                    disabled={cart.length === 0 || allDrugsUnavailable}
                   >
                     <ShoppingCart className="h-4 w-4 mr-2" />
-                    {purchaseStatus === 'success' ? 'Order Successfully Placed' : 'Proceed to Checkout'}
+                    {orderPlaced ? 'View Order Details' : 'Proceed to Checkout'}
                   </Button>
                   
                   {someDrugsUnavailable && (
@@ -891,7 +995,7 @@ Please take to your local pharmacy to fulfill this prescription.
                     </div>
                   )}
 
-                  {(cart.length === 0 || allDrugsUnavailable) && purchaseStatus !== 'success' && (
+                  {(cart.length === 0 || allDrugsUnavailable) && !orderPlaced && (
                     <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity">
                       No drugs available for checkout. Please download your prescription instead.
                     </div>
@@ -916,7 +1020,7 @@ Please take to your local pharmacy to fulfill this prescription.
     
     return (
       <Dialog open={prescriptionModalOpen} onOpenChange={setPrescriptionModalOpen}>
-        <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden">
+        <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden max-h-[90vh] overflow-y-auto">
           <div className="bg-primary/10 p-4">
             <div className="flex items-center justify-between mb-2">
               <DialogTitle className="text-lg flex items-center">
@@ -941,7 +1045,7 @@ Please take to your local pharmacy to fulfill this prescription.
             </DialogDescription>
               </div>
 
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             <h3 className="text-sm font-medium mb-3">Prescribed Medications</h3>
             
             <div className="border rounded-md divide-y mb-6 max-h-[300px] overflow-y-auto">
@@ -979,7 +1083,7 @@ Please take to your local pharmacy to fulfill this prescription.
               {!allDrugsUnavailable ? (
                 <Button 
                   className="w-full" 
-                  onClick={openCheckoutModal}
+                  onClick={orderPlaced ? viewOrderDetails : openCheckoutModal}
                 >
                     <ShoppingCart className="h-4 w-4 mr-2" />
                   Proceed to Checkout
@@ -1036,27 +1140,6 @@ Please take to your local pharmacy to fulfill this prescription.
     const { userId } = useAuth();
     const [deliveryAddress, setDeliveryAddress] = useState("");
     const [isAddressValid, setIsAddressValid] = useState(false);
-    const [userEmail, setUserEmail] = useState("customer@example.com");
-    
-    // Get user email from Clerk
-    useEffect(() => {
-      // Try to get user email from local storage or session if available
-      const storedEmail = localStorage.getItem('user-email');
-      if (storedEmail) {
-        setUserEmail(storedEmail);
-      } else {
-        // Try to fetch from Clerk's API
-        fetch('/api/auth/me')
-          .then(res => res.json())
-          .then(data => {
-            if (data.email) {
-              setUserEmail(data.email);
-              localStorage.setItem('user-email', data.email);
-            }
-          })
-          .catch(err => console.error('Error fetching user email:', err));
-      }
-    }, []);
     
     const totalAmount = cart.reduce((sum, item) => sum + (item.price || 0), 0) + 5;
     
@@ -1114,16 +1197,11 @@ Please take to your local pharmacy to fulfill this prescription.
           logger.info('payment', 'Offline payment queued', { reference: paymentData.reference });
           toast.success("Your payment will be processed when your connection is restored.");
           
-          // Close checkout and reset cart
+          // Close checkout
           setCheckoutOpen(false);
-          setCart([]);
           
-          // Show a message in the chat
-          const paymentMessage = {
-            role: "assistant",
-            content: "Your payment has been queued and will be processed when your internet connection is restored. You'll receive confirmation once it's completed."
-          };
-          sendMessage(paymentMessage.content);
+          // Add message using sendMessage
+          sendMessage("checkout_complete");
           
           return;
         }
@@ -1131,22 +1209,38 @@ Please take to your local pharmacy to fulfill this prescription.
         // For successfully processed payments, continue with normal flow
         logger.info('payment', 'Payment successful', { 
           orderId: paymentData.order?.id,
-          paymentId: paymentData.payment?.id 
+          paymentId: paymentData.payment?.id,
+          idempotencyKey: orderIdempotencyKey
         });
         
-        // Close checkout and reset cart
+        // Save the order ID for later use
+        if (paymentData.order?.id) {
+          setLatestOrderId(paymentData.order.id);
+          // Store order ID in sessionStorage to prevent duplicate payments
+          sessionStorage.setItem('pharmaai-order-id', paymentData.order.id);
+        }
+        
+        // Update status
+        setPurchaseStatus('success');
+        setOrderPlaced(true);
+        setOrderPaymentComplete(true);
+        
+        // Store payment completion in sessionStorage
+        sessionStorage.setItem('pharmaai-payment-complete', 'true');
+        
+        // Close checkout
         setCheckoutOpen(false);
-        setCart([]);
         
         // Save prescriptions for each cart item if it's a prescription drug
         await savePrescriptions();
         
-        // Show a confirmation message in the chat
-        const confirmationMessage = {
-          role: "assistant",
-          content: `Your payment was successful! Order #${paymentData.order?.id || 'pending'} has been confirmed. You will receive your medications shortly.`
-        };
-        sendMessage(confirmationMessage.content);
+        // Add message using sendMessage
+        sendMessage("checkout_complete");
+        
+        // Show a notification to the current user only
+        if (notificationsRef.current) {
+          notificationsRef.current.addNotification(`Order #${paymentData.order?.id || 'pending'} has been successfully placed!`);
+        }
         
       } catch (error) {
         logger.error('payment', 'Error handling payment success', { error });
@@ -1154,14 +1248,28 @@ Please take to your local pharmacy to fulfill this prescription.
       }
     };
     
+    // Add a function to handle viewing order details
+    const viewOrderDetails = () => {
+      if (!latestOrderId) {
+        toast.error("Order details not available");
+        return;
+      }
+      
+      // Show order details in a modal
+      toast.info(`Viewing Order #${latestOrderId} details`);
+      
+      // Open the checkout modal with order details
+      setCheckoutOpen(true);
+    };
+
     return (
       <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
-        <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden">
+        <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden max-h-[90vh] overflow-y-auto">
           <div className="bg-primary/10 p-4">
             <div className="flex items-center justify-between mb-2">
               <DialogTitle className="text-lg flex items-center">
                 <ShoppingCart className="h-5 w-5 mr-2 text-primary" />
-                Checkout
+                {orderPlaced ? `Order #${latestOrderId} Details` : 'Checkout'}
               </DialogTitle>
               <Button 
                 variant="ghost" 
@@ -1177,7 +1285,7 @@ Please take to your local pharmacy to fulfill this prescription.
             </DialogDescription>
           </div>
 
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             <h3 className="text-sm font-medium mb-3">Order Summary</h3>
             
             <div className="border rounded-md divide-y mb-6">
@@ -1232,7 +1340,7 @@ Please take to your local pharmacy to fulfill this prescription.
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <PDFPrescription
                 diagnosis={diagnosis?.diagnosis || "No diagnosis available"}
                 prescriptions={diagnosis?.prescriptions || []}
@@ -1243,7 +1351,7 @@ Please take to your local pharmacy to fulfill this prescription.
                 email={userEmail}
                 name={userEmail || undefined}
                 className="flex-1"
-                disabled={!isAddressValid}
+                disabled={!isAddressValid || orderPaymentComplete}
                 cart={cart.map(item => ({
                   drugId: item.id || item.drugId || `med_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
                   quantity: 1,
@@ -1253,6 +1361,7 @@ Please take to your local pharmacy to fulfill this prescription.
                   form: item.form
                 }))}
                 deliveryAddress={deliveryAddress}
+                idempotencyKey={orderIdempotencyKey}
                 onSuccess={handlePaymentSuccess}
                 onCancel={() => {
                   setCheckoutOpen(false);
@@ -1262,17 +1371,19 @@ Please take to your local pharmacy to fulfill this prescription.
               >
                 <Button
                   className="w-full bg-primary text-white hover:bg-primary/90"
-                  disabled={isLoading}
+                  disabled={isLoading || orderPaymentComplete}
                 >
                   {isLoading ? (
                     <div className="flex items-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
                     Processing...
                     </div>
+                  ) : orderPaymentComplete ? (
+                    "Payment Complete"
                   ) : (
                     `Pay ${totalAmount.toFixed(2)}`
-                )}
-              </Button>
+                  )}
+                </Button>
               </PaystackButton>
             </div>
           </div>
@@ -1291,7 +1402,7 @@ Please take to your local pharmacy to fulfill this prescription.
     console.log("Rendering diagnosis panel with data:", diagnosis);
     
     return (
-      <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden">
+      <div className="mt-8 bg-white rounded-lg shadow-md overflow-hidden w-full">
         <div className="bg-blue-600 text-white p-4 flex justify-between items-center">
           <h3 className="text-lg font-semibold flex items-center">
             <Stethoscope className="mr-2 h-5 w-5" />
@@ -1305,7 +1416,7 @@ Please take to your local pharmacy to fulfill this prescription.
         </div>
         
         {showMedicationPanel && (
-          <div className="p-4">
+          <div className="p-3 sm:p-4">
             <div className="mb-4">
               <h4 className="font-semibold text-gray-700 mb-2">Diagnosis:</h4>
               <p className="text-gray-700">{diagnosis.diagnosis}</p>
@@ -1315,32 +1426,39 @@ Please take to your local pharmacy to fulfill this prescription.
               <h4 className="font-semibold text-gray-700 mb-2">Prescription:</h4>
               <div className="space-y-4">
                 {diagnosis.prescriptions && diagnosis.prescriptions.map((med, index) => (
-                  <Card key={index} className="border border-gray-200">
+                  <Card key={index} className={unavailableDrugs.some(drug => drug.name === med.drug_name) ? "border border-destructive/50" : "border border-gray-200"}>
                     <CardHeader className="py-3 px-4 bg-gray-50">
-                      <CardTitle className="text-base flex items-center">
-                        <Pill className="h-4 w-4 mr-2 text-blue-600" />
-                        {med.drug_name}
+                      <CardTitle className="text-base flex items-center justify-between">
+                        <div className="flex items-center">
+                          <Pill className="h-4 w-4 mr-2 text-blue-600" />
+                          {med.drug_name}
+                        </div>
+                        {unavailableDrugs.some(drug => drug.name === med.drug_name) && (
+                          <Badge variant="destructive" className="ml-2">
+                            Not Available
+                          </Badge>
+                        )}
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="py-3 px-4">
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-          <div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                        <div>
                           <p className="text-gray-500 font-medium">Dosage:</p>
                           <p>{med.dosage}</p>
-          </div>
-          <div>
+                        </div>
+                        <div>
                           <p className="text-gray-500 font-medium">Form:</p>
                           <p>{med.form}</p>
-          </div>
-          <div>
+                        </div>
+                        <div>
                           <p className="text-gray-500 font-medium">Duration:</p>
                           <p>{med.duration}</p>
-          </div>
-                    <div>
+                        </div>
+                        <div>
                           <p className="text-gray-500 font-medium">Instructions:</p>
                           <p>{med.instructions}</p>
+                        </div>
                       </div>
-                    </div>
                     </CardContent>
                   </Card>
                 ))}
@@ -1363,11 +1481,11 @@ Please take to your local pharmacy to fulfill this prescription.
             <div className="flex justify-center mt-6">
                     <Button 
                 className="w-full max-w-xs"
-                onClick={() => openCheckoutModal()}
-                disabled={purchaseStatus === 'success'}
+                onClick={orderPlaced ? viewOrderDetails : () => openCheckoutModal()}
+                disabled={purchaseStatus === 'processing'}
               >
                 <ShoppingCart className="mr-2 h-4 w-4" />
-                {purchaseStatus === 'success' ? 'Order Placed Successfully' : 'Proceed to Checkout'}
+                {orderPlaced ? 'View Order Details' : 'Proceed to Checkout'}
                     </Button>
                   </div>
                 </div>
@@ -1432,22 +1550,29 @@ Please take to your local pharmacy to fulfill this prescription.
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.3, delay: idx * 0.1 }}
-                    className="flex items-start gap-3 p-3 rounded-lg bg-muted/50"
+                    className={`flex items-start gap-3 p-3 rounded-lg ${unavailableDrugs.some(drug => drug.name === prescription.drug_name) ? "bg-muted/50 border border-destructive/30" : "bg-muted/50"}`}
                   >
                     <div className="mt-0.5">
                       <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10">
                         <Pill className="h-4 w-4 text-primary" />
                       </span>
                     </div>
-                    <div className="space-y-1">
-                      <p className="font-medium text-sm">{prescription.drug_name}</p>
+                    <div className="space-y-1 flex-grow">
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium text-sm">{prescription.drug_name}</p>
+                        {unavailableDrugs.some(drug => drug.name === prescription.drug_name) && (
+                          <Badge variant="destructive" className="text-xs">
+                            Not Available
+                          </Badge>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground">{prescription.dosage}</p>
                       <p className="text-xs text-muted-foreground">{prescription.form}</p>
                       <p className="text-xs text-muted-foreground">{prescription.duration}</p>
                       <p className="text-xs text-muted-foreground">{prescription.instructions}</p>
-                          </div>
+                    </div>
                   </motion.div>
-                      ))}
+                ))}
                 
                 {(!diagnosis.prescriptions || diagnosis.prescriptions.length === 0) && (
                   <div className="p-3 rounded-lg bg-muted/50 text-sm">
@@ -1473,9 +1598,15 @@ Please take to your local pharmacy to fulfill this prescription.
   const scrollToBottom = () => {
     // Try both the container and the end ref to ensure scrolling works
     if (chatContainerRef.current) {
+      // Use a small timeout to ensure content is rendered
+      setTimeout(() => {
+    if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+        }
+      }, 50);
     }
      
+    // Also try using the messagesEndRef
     setTimeout(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, 100);
@@ -1483,33 +1614,32 @@ Please take to your local pharmacy to fulfill this prescription.
 
   // Main component render
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full w-full">
       <div className="flex justify-between items-center p-4 border-b">
         <h2 className="text-lg font-semibold">PharmaAI Assistant</h2>
         <Notifications ref={notificationsRef} />
             </div>
-      
-      
-      
       
       {/* Render checkout dialog */}
       {renderCheckoutDialog()}
       
       {/* Chat Container */}
       {isLoadingHistory ? renderLoadingHistory() : (
-        <div ref={chatContainerRef} className="flex-1 overflow-y-auto pb-6 pt-4 md:pt-6">
-          <div className="space-y-8 max-w-3xl mx-auto px-4">
+        <div ref={chatContainerRef} className="flex-1 w-full overflow-hidden flex flex-col">
+          <div className="dashboard-scroll-content w-full px-2 sm:px-4">
+            <div className="space-y-8 w-full">
             {messages.length === 0 ? renderEmptyState() : renderMessages()}
             {diagnosis && renderDiagnosisPanel()}
                 <div ref={messagesEndRef} />
+            </div>
           </div>
               </div>
             )}
       
       {/* Input Area */}
-      <div className="border-t bg-background">
-        <div className="max-w-3xl mx-auto px-4">
-          <form onSubmit={handleSendMessage} className="py-4">
+      <div className="border-t bg-background w-full flex-shrink-0">
+        <div className="w-full px-2 sm:px-4 py-4">
+          <form onSubmit={handleSendMessage}>
             <div className="flex gap-2 items-end">
               <div className="flex-1 relative">
             <Input
@@ -1518,7 +1648,7 @@ Please take to your local pharmacy to fulfill this prescription.
                   onChange={e => setInputValue(e.target.value)}
                   placeholder="Describe your symptoms... (e.g., I have a headache)"
               disabled={isLoading}
-                  className="pr-10"
+                  className="pr-10 w-full"
                 />
                 {isLoading && (
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
@@ -1544,15 +1674,7 @@ Please take to your local pharmacy to fulfill this prescription.
         </div>
       </div>
       
-      {/* Debug display for diagnosis data */}
-      {diagnosis && (
-        <div className="bg-yellow-50 p-4 my-4 rounded-md border border-yellow-300">
-          <h3 className="font-bold mb-2">Debug: Diagnosis Data Received</h3>
-          <pre className="text-xs overflow-auto max-h-24">
-            {JSON.stringify(diagnosis, null, 2)}
-          </pre>
-        </div>
-      )}
+     
     </div>
   );
 } 

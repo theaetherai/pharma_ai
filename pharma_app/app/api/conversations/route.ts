@@ -2,85 +2,81 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@clerk/nextjs";
 
-export async function GET(req: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    // Get authenticated user ID from Clerk
+    // Get authentication info
     const { userId } = auth();
     
-    // If no user ID, the request is unauthorized
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Parse pagination parameters from query string
-    const searchParams = req.nextUrl.searchParams;
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '20');
+    // Get the user ID from the query parameters or use the authenticated user ID
+    const searchParams = request.nextUrl.searchParams;
+    const chatUserId = searchParams.get('userId') || userId || 'anonymous-user';
     
-    // Validate pagination parameters
-    const validPage = page > 0 ? page : 1;
-    const validLimit = limit > 0 && limit <= 100 ? limit : 20;
-    const skip = (validPage - 1) * validLimit;
-
-    // Find user in database by clerkId
-    const user = await db.user.findUnique({
-      where: { clerkId: userId }
-    });
-
-    // If user doesn't exist in our database
-    if (!user) {
-      console.log(`User with Clerk ID ${userId} not found in database`);
-      return NextResponse.json({ conversations: [] });
+    // For demo/anonymous users, return empty array
+    const isAnonymousUser = chatUserId.startsWith('user-') || chatUserId === 'anonymous-user';
+    if (isAnonymousUser) {
+      return NextResponse.json({
+        success: true,
+        chatHistory: [],
+        userId: chatUserId,
+        message: 'No stored history for anonymous user'
+      });
     }
-
-    // Get total count for pagination
-    const totalConversations = await db.conversation.count({
-      where: { userId: user.id }
-    });
     
-    // Get conversations for this user, ordered by createdAt with pagination
-    const conversations = await db.conversation.findMany({
-      where: { 
-        userId: user.id 
-      },
-      orderBy: { 
-        createdAt: 'desc' 
-      },
-      select: {
-        id: true,
-        message: true,
-        response: true,
-        createdAt: true
-      },
-      skip,
-      take: validLimit
-    });
-
-    // Format conversations into chat messages
-    const chatHistory = conversations.reduce((messages, conv) => {
-      // Add user message first, then assistant response
-      return [
-        ...messages,
-        { role: 'user' as const, content: conv.message },
-        { role: 'assistant' as const, content: conv.response }
-      ];
-    }, [] as { role: 'user' | 'assistant'; content: string }[]);
-
-    return NextResponse.json({ 
-      success: true,
-      chatHistory,
-      pagination: {
-        totalRecords: totalConversations,
-        currentPage: validPage,
-        pageSize: validLimit,
-        totalPages: Math.ceil(totalConversations / validLimit)
+    // Find the user in the database
+    const user = await db.user.findFirst({
+      where: {
+        OR: [
+          { id: chatUserId },
+          { clerkId: chatUserId }
+        ]
       }
     });
+    
+    // If user not found, return empty array
+    if (!user) {
+      return NextResponse.json({
+        success: true,
+        chatHistory: [],
+        userId: chatUserId,
+        message: 'User not found in database'
+      });
+    }
+    
+    // Fetch the conversations from the database directly
+    const conversations = await db.conversation.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'asc' }
+    });
+    
+    // Format the conversations into chat messages
+    const chatHistory = [];
+    
+    // Process each conversation into user and assistant message pairs
+    for (const conversation of conversations) {
+      chatHistory.push({ 
+        role: 'user', 
+        content: conversation.message 
+      });
+      
+      chatHistory.push({ 
+        role: 'assistant', 
+        content: conversation.response 
+      });
+    }
+    
+    return NextResponse.json({
+      success: true,
+      chatHistory,
+      userId: chatUserId
+    });
   } catch (error) {
-    console.error("Error fetching conversations:", error);
-    return NextResponse.json({ 
-      error: "Failed to fetch conversations",
-      details: error instanceof Error ? error.message : "Unknown error" 
-    }, { status: 500 });
+    console.error('Error fetching conversation history:', error);
+    return NextResponse.json(
+      { 
+        success: false,
+        error: `Error fetching conversation history: ${error}` 
+      },
+      { status: 500 }
+    );
   }
 } 

@@ -30,7 +30,7 @@ export default function DashboardClient({ children, userInfo }: DashboardClientP
         <Sidebar />
       </div>
 
-      {/* Mobile sidebar */}
+      {/* Mobile sidebar - only include it once in the layout, not in the header */}
       <div className="md:hidden">
         <SidebarMobile />
       </div>
@@ -46,9 +46,7 @@ export default function DashboardClient({ children, userInfo }: DashboardClientP
         >
           <div className="flex items-center justify-between h-full px-4">
             <div className="flex items-center gap-3">
-              <div className="md:hidden">
-                <SidebarMobile />
-              </div>
+              {/* Don't include the sidebar mobile toggle here, it's already in the layout */}
               <div className="hidden md:block">
                 <div className="relative w-[300px]">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -78,14 +76,12 @@ export default function DashboardClient({ children, userInfo }: DashboardClientP
 
         {/* Content area */}
         <motion.main 
-          className="flex-1 overflow-auto p-4 md:p-6 dashboard-content"
+          className="flex-1 h-[calc(100%-4rem)] w-full"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.4, delay: 0.1 }}
         >
-          <div className="w-full mx-auto max-w-7xl responsive-container">
             {children}
-          </div>
         </motion.main>
       </div>
     </div>

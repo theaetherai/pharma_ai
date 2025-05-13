@@ -39,27 +39,60 @@ export function usePharmaChat() {
       try {
         setIsLoadingHistory(true);
         
-        // Fetch conversation history from our API
-        const response = await fetch('/api/conversations');
-        
-        if (!response.ok) {
-          console.error('Failed to fetch conversation history');
-          return;
+        // Try to load from API first since it's now database-backed
+        try {
+          const response = await fetch('/api/conversations');
+          
+          if (response.ok) {
+            const data = await response.json();
+            
+            // If we have chat history, set it in the state
+            if (data.success && data.chatHistory && data.chatHistory.length > 0) {
+              console.log('Loaded conversation history from API:', data.chatHistory.length, 'messages');
+              setMessages(data.chatHistory);
+              
+              // Also save to localStorage as backup
+              localStorage.setItem('pharmaai-chat-history', JSON.stringify(data.chatHistory));
+              
+              // Check if the last message indicates we were in the middle of a diagnosis
+              const lastMessage = data.chatHistory[data.chatHistory.length - 1];
+              if (lastMessage && lastMessage.role === 'assistant' && 
+                  lastMessage.content.includes("passing this to the system")) {
+                // If we were at the diagnosis stage, try to restore diagnosis data
+                await restoreDiagnosis();
+              }
+              
+              setIsLoadingHistory(false);
+              return; // Skip localStorage loading if API succeeded
+            }
+          }
+        } catch (apiErr) {
+          console.error('Error loading conversation history from API:', apiErr);
+          // Continue to try localStorage as fallback
         }
         
-        const data = await response.json();
+        // Fallback to localStorage if API failed
+        const savedChats = localStorage.getItem('pharmaai-chat-history');
+        const savedUserId = localStorage.getItem('pharmaai-user-id');
         
-        // If we have chat history, set it in the state
-        if (data.success && data.chatHistory && data.chatHistory.length > 0) {
-          console.log('Loaded conversation history:', data.chatHistory.length, 'messages');
-          setMessages(data.chatHistory);
-          
-          // Check if the last message indicates we were in the middle of a diagnosis
-          const lastMessage = data.chatHistory[data.chatHistory.length - 1];
-          if (lastMessage && lastMessage.role === 'assistant' && 
-              lastMessage.content.includes("passing this to the system")) {
-            // If we were at the diagnosis stage, try to restore diagnosis data
-            await restoreDiagnosis();
+        if (savedChats) {
+          try {
+            const parsedChats = JSON.parse(savedChats);
+            if (Array.isArray(parsedChats) && parsedChats.length > 0) {
+              console.log('Loaded conversation history from localStorage:', parsedChats.length, 'messages');
+              setMessages(parsedChats);
+              
+              // Check if the last message indicates we were in the middle of a diagnosis
+              const lastMessage = parsedChats[parsedChats.length - 1];
+              if (lastMessage && lastMessage.role === 'assistant' && 
+                  lastMessage.content.includes("passing this to the system")) {
+                // If we were at the diagnosis stage, try to restore diagnosis data
+                await restoreDiagnosis();
+              }
+            }
+          } catch (error) {
+            console.error('Error parsing saved chat history:', error);
+            localStorage.removeItem('pharmaai-chat-history');
           }
         }
       } catch (err) {
@@ -72,15 +105,40 @@ export function usePharmaChat() {
     // Restore diagnosis data if needed
     async function restoreDiagnosis() {
       try {
-        // This is a simplified version - in a real app, you might want to store
-        // the diagnosis separately and fetch it here
-        const response = await fetch('/api/diagnose/latest');
+        // First try to get diagnosis from API (database)
+        try {
+          const response = await fetch('/api/diagnose/latest');
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.diagnosis) {
+              console.log('Restored diagnosis from API');
+              setDiagnosis(data.diagnosis);
+              setReadyForCheckout(true);
+              
+              // Save to localStorage for future use
+              localStorage.setItem('pharmaai-diagnosis', JSON.stringify(data.diagnosis));
+              return; // Skip localStorage if API succeeded
+            }
+          }
+        } catch (apiErr) {
+          console.error('Error restoring diagnosis from API:', apiErr);
+          // Continue to try localStorage as fallback
+        }
         
-        if (response.ok) {
-          const data = await response.json();
-          if (data.diagnosis) {
-            setDiagnosis(data.diagnosis);
-            setReadyForCheckout(true);
+        // Fallback to localStorage
+        const savedDiagnosis = localStorage.getItem('pharmaai-diagnosis');
+        if (savedDiagnosis) {
+          try {
+            const parsedDiagnosis = JSON.parse(savedDiagnosis);
+            if (parsedDiagnosis && parsedDiagnosis.diagnosis) {
+              console.log('Restored diagnosis from localStorage');
+              setDiagnosis(parsedDiagnosis);
+              setReadyForCheckout(true);
+            }
+          } catch (parseErr) {
+            console.error('Error parsing saved diagnosis:', parseErr);
+            localStorage.removeItem('pharmaai-diagnosis');
           }
         }
       } catch (err) {
@@ -90,6 +148,18 @@ export function usePharmaChat() {
     
     loadConversationHistory();
   }, []);
+
+  // Effect to save conversation history to localStorage when it changes
+  useEffect(() => {
+    if (!isLoadingHistory && messages.length > 0) {
+      try {
+        localStorage.setItem('pharmaai-chat-history', JSON.stringify(messages));
+        localStorage.setItem('pharmaai-user-id', userId);
+      } catch (error) {
+        console.error('Error saving chat history to localStorage:', error);
+      }
+    }
+  }, [messages, userId, isLoadingHistory]);
 
   // Effect to handle automatic diagnosis when ready
   useEffect(() => {
@@ -190,7 +260,17 @@ export function usePharmaChat() {
         return { success: true };
       }
       
-      // Add user message to the chat
+      // Handle special case for prescription download
+      if (message === "prescription_downloaded") {
+        setMessages(prev => [...prev, { 
+          role: 'assistant', 
+          content: 'Your prescription has been downloaded. You can take it to your local pharmacy to fill your medications.' 
+        }]);
+        setIsLoading(false);
+        return { success: true };
+      }
+      
+      // Add user message to the chat UI immediately for better user experience
       setMessages(prev => [...prev, { role: 'user', content: message }]);
       
       // Send message to API
@@ -342,6 +422,9 @@ export function usePharmaChat() {
         // Set checkout readiness based on response or default to true
         setReadyForCheckout(data.checkout_ready !== false);
         
+        // Save diagnosis to localStorage as backup
+        localStorage.setItem('pharmaai-diagnosis', JSON.stringify(diagnosisData));
+        
         console.log('Diagnosis state has been set:', diagnosisData);
         console.log('Ready for checkout:', data.checkout_ready !== false);
       } else {
@@ -404,12 +487,16 @@ export function usePharmaChat() {
     return uniqueMessages;
   };
   
-  // Clear the chat
+  // Clear the chat - local only, doesn't affect database
   const clearChat = useCallback(() => {
     setMessages([]);
     setDiagnosis(null);
     setError(null);
     setReadyForCheckout(false);
+    
+    // Also clear localStorage chat data
+    localStorage.removeItem('pharmaai-chat-history');
+    localStorage.removeItem('pharmaai-diagnosis');
   }, []);
   
   // Reset chat - creates a new conversation in the backend and clears local state
@@ -423,12 +510,17 @@ export function usePharmaChat() {
       setError(null);
       setReadyForCheckout(false);
       
-      // Call backend API to clear conversation history
+      // Clear localStorage data
+      localStorage.removeItem('pharmaai-chat-history');
+      localStorage.removeItem('pharmaai-diagnosis');
+      
+      // Call backend API to clear conversation history from the database
       await fetch('/api/conversations/reset', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
+        body: JSON.stringify({ userId }), // Make sure to include userId
         credentials: 'include'
       });
       
@@ -439,7 +531,7 @@ export function usePharmaChat() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [userId]);
   
   // Effect to save prescriptions automatically when diagnosis is generated
   useEffect(() => {
@@ -488,5 +580,6 @@ export function usePharmaChat() {
     clearChat,
     isLoadingHistory,
     resetChat,
+    setMessages,
   };
 } 

@@ -13,16 +13,26 @@ body {
     text-wrap: balance;
   }
   .responsive-container {
+    @apply w-full px-4 sm:px-6 md:px-8;
+  }
+  
+  /* Landing page container with max-width */
+  .landing-container {
     @apply w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8;
   }
   
   .dashboard-page {
-    @apply w-full max-w-none;
+    @apply w-full max-w-none px-4 md:px-6 py-6;
   }
 
-  /* Force all dashboard content to respect mobile/desktop breakpoints */
+  /* Remove scrollbars and ensure full width for dashboard content */
   .dashboard-content {
-    @apply w-full flex-1 overflow-auto;
+    @apply w-full h-full overflow-hidden;
+  }
+  
+  /* Content container for dashboard pages that need scrolling */
+  .dashboard-scroll-content {
+    @apply w-full h-full overflow-y-auto;
   }
   
   /* Add responsive classes for all dashboard pages */
@@ -36,10 +46,6 @@ body {
   
   .dashboard-header {
     @apply flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6;
-  }
-  
-  .dashboard-section {
-    @apply w-full mx-auto py-6 px-0 sm:px-4 md:px-6;
   }
 }
 
