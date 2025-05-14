@@ -6,6 +6,10 @@ import { redirect } from "next/navigation";
 import { createRoleJWT, getUserRoleFromJWT, storeRoleJWT } from "@/lib/jwt-utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import DashboardClient from "./dashboard-client";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { SidebarMobile } from "@/components/sidebar-mobile";
+import { DashboardHeader } from "@/components/dashboard-header";
+import { CartProvider } from "@/components/cart/cart-provider";
 
 // Lazy load components for better performance
 const SidebarFallback = () => (
@@ -17,78 +21,27 @@ const SidebarFallback = () => (
   </div>
 );
 
-export default async function DashboardLayout({
-  children,
-}: {
+interface DashboardLayoutProps {
   children: React.ReactNode;
-}) {
-  try {
-    // Get auth status first - this is faster and more reliable
-    const { userId } = auth();
-    
-    // If user is not authenticated, redirect to sign-in
-    if (!userId) {
-      redirect("/sign-in");
-    }
-    
-    // Get current user details only if authenticated
-    let user;
-    try {
-      user = await currentUser();
-    } catch (error) {
-      console.error("Error fetching current user:", error);
-      // Redirect to sign-in if we can't get the user
-      redirect("/sign-in");
-    }
-    
-    // This should not happen if userId exists, but as a fallback
-    if (!user) {
-      redirect("/sign-in");
-    }
+}
 
-    // Get user's role from JWT or database - this is the key improvement
-    let userRole;
-    try {
-      // First check if we have a valid JWT with the role
-      userRole = await getUserRoleFromJWT(userId);
-
-      // If no role in JWT, create a new JWT with role from database
-      if (!userRole) {
-        console.log(`No role found in JWT for user ${userId}, creating new JWT`);
-        const token = await createRoleJWT(userId);
-        if (token) {
-          await storeRoleJWT(token);
-          // Get the role again (from the newly created JWT)
-          userRole = await getUserRoleFromJWT(userId);
-        }
-      }
-    } catch (error) {
-      console.error("Error checking user role:", error);
-      // Continue without role if there's an error - will default to regular user access
-    }
-
-    // Extract only the properties we need as a plain object
-    const userInfo = {
-      id: user.id,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      imageUrl: user.imageUrl,
-      email: user.emailAddresses[0]?.emailAddress || "",
-      role: userRole || "USER", // Add the role to user info object
-    };
-
-    // Pass the extracted user data to the client component
+export default function DashboardLayout({ children }: DashboardLayoutProps) {
     return (
-      <div className="flex h-screen w-full overflow-hidden bg-gradient-to-b from-background to-secondary/10">
-        {/* Main content - SidebarMobile is now handled in DashboardClient */}
-        <DashboardClient userInfo={userInfo}>
-          {children}
-        </DashboardClient>
+    <div className="flex h-screen max-h-screen overflow-hidden">
+      <CartProvider>
+        <div className="hidden md:flex h-full">
+          <Sidebar />
+        </div>
+        <div className="md:hidden">
+          <SidebarMobile />
+        </div>
+        <div className="flex flex-col flex-1 h-full min-w-0">
+          <DashboardHeader />
+          <main className="flex-1 overflow-y-auto overflow-x-hidden">
+            {children}
+          </main>
+        </div>
+      </CartProvider>
       </div>
     );
-  } catch (error) {
-    console.error("Error in dashboard layout:", error);
-    // Fallback UI or redirect in case of any errors
-    redirect("/sign-in");
-  }
 } 

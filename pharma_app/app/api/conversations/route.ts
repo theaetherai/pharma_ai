@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
         ]
       }
     });
-    
+
     // If user not found, return empty array
     if (!user) {
       return NextResponse.json({
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
       where: { userId: user.id },
       orderBy: { createdAt: 'asc' }
     });
-    
+
     // Format the conversations into chat messages
     const chatHistory = [];
     
@@ -63,8 +63,8 @@ export async function GET(request: NextRequest) {
         content: conversation.response 
       });
     }
-    
-    return NextResponse.json({
+
+    return NextResponse.json({ 
       success: true,
       chatHistory,
       userId: chatUserId

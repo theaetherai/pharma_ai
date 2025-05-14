@@ -306,18 +306,22 @@ export async function confirmOrderPayment(params: PaymentConfirmParams) {
 export async function updateOrderStatus(params: UpdateOrderStatusParams) {
   const { orderId, status, notes } = params;
   
-  return await db.$transaction(async (tx) => {
-    // Update order status
-    const updatedOrder = await tx.order.update({
+  try {
+    // First, get the current order to get user ID
+    const order = await db.order.findUnique({
+      where: { id: orderId },
+      select: { userId: true }
+    });
+    
+    if (!order) {
+      throw new Error(`Order ${orderId} not found`);
+    }
+    
+    // Update order status without transaction to avoid timeouts
+    const updatedOrder = await db.order.update({
       where: { id: orderId },
       data: {
         status,
-        statusLogs: {
-          create: {
-            status,
-            notes: notes || `Order status updated to ${status}`
-          }
-        }
       },
       include: {
         user: true,
@@ -325,13 +329,22 @@ export async function updateOrderStatus(params: UpdateOrderStatusParams) {
       }
     });
     
-    // Create notification for status change
-    await tx.notification.create({
+    // Create status log in a separate query
+    await db.orderStatusLog.create({
+      data: {
+        orderId,
+        status,
+        notes: notes || `Order status updated to ${status}`
+      }
+    });
+    
+    // Create notification for status change in a separate query
+    await db.notification.create({
       data: {
         title: "Order Status Updated",
         message: `Order #${orderId} status has been updated to ${status}`,
         type: NotificationType.ORDER_STATUS_CHANGE,
-        userId: updatedOrder.userId,
+        userId: order.userId,
         metadata: { 
           orderId,
           status
@@ -339,8 +352,14 @@ export async function updateOrderStatus(params: UpdateOrderStatusParams) {
       }
     });
     
+    // Invalidate analytics cache to ensure fresh data
+    invalidateAnalyticsCache();
+    
     return updatedOrder;
-  });
+  } catch (error) {
+    console.error(`Error updating order status for order ${orderId}:`, error);
+    throw error;
+  }
 }
 
 /**

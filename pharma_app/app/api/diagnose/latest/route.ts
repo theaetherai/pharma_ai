@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     // Get the user ID from the query parameters or use the authenticated user ID
     const searchParams = request.nextUrl.searchParams;
     const chatUserId = searchParams.get('userId') || userId || 'anonymous-user';
-    
+
     // For demo/anonymous users, return empty result
     const isAnonymousUser = chatUserId.startsWith('user-') || chatUserId === 'anonymous-user';
     if (isAnonymousUser) {
@@ -21,26 +21,26 @@ export async function GET(request: NextRequest) {
         message: 'No diagnosis found for anonymous user'
       });
     }
-    
+
     // Find the user in the database
     const user = await db.user.findFirst({
-      where: {
+      where: { 
         OR: [
           { id: chatUserId },
           { clerkId: chatUserId }
         ]
       }
     });
-    
+
     // If user not found, return empty result
     if (!user) {
-      return NextResponse.json({
+      return NextResponse.json({ 
         success: true,
         diagnosis: null,
         message: 'User not found in database'
       });
     }
-    
+
     // Fetch the user's latest conversation with diagnosis from the database
     const latestConversation = await db.conversation.findFirst({
       where: { 
@@ -53,14 +53,14 @@ export async function GET(request: NextRequest) {
     });
     
     if (!latestConversation || !latestConversation.diagnosis) {
-      return NextResponse.json({
+      return NextResponse.json({ 
         success: true,
         diagnosis: null,
         message: 'No diagnosis found for this user'
       });
     }
-    
-    return NextResponse.json({
+
+    return NextResponse.json({ 
       success: true,
       diagnosis: latestConversation.diagnosis,
       diagnosisId: latestConversation.id,

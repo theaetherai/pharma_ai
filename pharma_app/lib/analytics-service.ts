@@ -357,8 +357,33 @@ export async function getDrugCategoryDistribution() {
   return getOrFetchCached(
     CACHE_KEYS.DRUG_CATEGORY_DISTRIBUTION,
     async () => {
-      const categoryData = await safeDbQuery(
+      // First check if the category column exists in the Drug table
+      const columnExists = await safeDbQuery(async () => {
+        try {
+          // Try to query using the category column
+          await db.$queryRaw`SELECT category FROM "Drug" LIMIT 1`;
+          return true;
+        } catch (error) {
+          // If error contains "column does not exist", return false
+          if (error instanceof Error && error.message.includes('column "category" does not exist')) {
+            return false;
+          }
+          throw error; // Rethrow other errors
+        }
+      }, false);
+      
+      // Define the type for our category data results
+      type CategoryResult = {
+        category: string;
+        count: number;
+        total_sold: number;
+        revenue: number;
+      };
+      
+      // Different query depending on whether the column exists
+      const categoryData = await safeDbQuery<CategoryResult[]>(
         async () => {
+          if (columnExists) {
           const results = await db.$queryRaw`
             SELECT 
               COALESCE(category, 'uncategorized') as category,
@@ -369,21 +394,32 @@ export async function getDrugCategoryDistribution() {
             GROUP BY category
             ORDER BY total_sold DESC
           `;
-          
-          return results as Array<{
-            category: string;
-            count: number;
-            total_sold: number;
-            revenue: number;
-          }>;
+            return results as CategoryResult[];
+          } else {
+            // Alternative query without the category column
+            // We'll use 'form' field as a fallback category or hardcode a default value
+            const results = await db.$queryRaw`
+              SELECT 
+                COALESCE(form, 'uncategorized') as category,
+                COUNT(*) as count,
+                SUM(total_sold) as total_sold,
+                SUM(revenue) as revenue
+              FROM "Drug"
+              GROUP BY form
+              ORDER BY total_sold DESC
+            `;
+            return results as CategoryResult[];
+          }
         },
-        []
+        [] as CategoryResult[]
       );
       
       // Format data and make category labels more human-readable
-      return categoryData.map(item => ({
+      return categoryData.map((item: CategoryResult) => ({
         ...item,
-        category: item.category.charAt(0).toUpperCase() + item.category.slice(1).replace(/_/g, ' '),
+        category: item.category 
+          ? item.category.charAt(0).toUpperCase() + item.category.slice(1).replace(/_/g, ' ')
+          : 'Uncategorized',
       }));
     },
     600 // 10 minutes cache

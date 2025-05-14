@@ -273,6 +273,19 @@ export function ChatInterface() {
       return;
     }
     
+    // Filter out unavailable drugs from the cart
+    const availableItems = cart.filter(item => !item.notFound);
+    
+    // If no available items, show error and offer to download prescription
+    if (availableItems.length === 0) {
+      toast.error("No medications are available for checkout. Please download your prescription instead.");
+      // Offer to download prescription
+      if (confirm("Would you like to download your prescription to take to another pharmacy?")) {
+        downloadPrescription();
+      }
+      return;
+    }
+    
     // Generate idempotency key for this order if none exists
     if (!orderIdempotencyKey) {
       // Create a UUID-like string for idempotency
@@ -281,14 +294,19 @@ export function ChatInterface() {
       sessionStorage.setItem('pharmaai-idempotency-key', newKey);
     }
     
-    // Ensure each item in the cart has a drugId field based on their id
-    const cartWithDrugIds = cart.map(item => ({
+    // Update the cart with only available items and ensure each has a drugId
+    const cartWithDrugIds = availableItems.map(item => ({
       ...item,
       drugId: item.id || `medication_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
     }));
     
-    // Update the cart with the drugId field
+    // Update the cart with the filtered list and drugId field
     setCart(cartWithDrugIds);
+    
+    // If some items were filtered out, notify the user
+    if (cartWithDrugIds.length < cart.length) {
+      toast.warning(`${cart.length - cartWithDrugIds.length} unavailable medication(s) have been removed from your cart.`);
+    }
     
     // Close prescription modal and open checkout
     setPrescriptionModalOpen(false);
@@ -407,6 +425,33 @@ Please take to your local pharmacy to fulfill this prescription.
     }
   };
 
+  // New function to download both text and PDF formats
+  const downloadPrescriptionOptions = () => {
+    // Create a modal or popover with download options
+    toast.message('Choose download format', {
+      description: (
+        <div className="flex flex-col gap-2 mt-2">
+          <Button 
+            variant="outline" 
+            className="w-full justify-start"
+            onClick={downloadPrescription}
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            Download as Text (.txt)
+          </Button>
+          {diagnosis && (
+            <PDFPrescription
+              diagnosis={diagnosis?.diagnosis || "No diagnosis available"}
+              prescriptions={diagnosis?.prescriptions || []}
+              className="w-full justify-start"
+            />
+          )}
+        </div>
+      ),
+      duration: 5000,
+    });
+  };
+
   // Generate a prescription
   const generatePrescription = (medication: MedicationWithPurchase) => {
     try {
@@ -489,11 +534,18 @@ Please take to your local pharmacy to fulfill this prescription.
 
   // Add a medication to cart
   const addToCart = (medication: MedicationWithPurchase) => {
+    // Don't add unavailable medications to cart
+    if (medication.notFound) {
+      toast.error(`${medication.name} is not available and cannot be added to cart.`);
+      return;
+    }
+    
     // If it's a prescription medication and not yet in cart, show prescription generation
     if (medication.prescription && !cart.some(item => item.name === medication.name)) {
       generatePrescription(medication);
     } else {
       setCart((prev) => [...prev, medication]);
+      toast.success(`${medication.name} added to cart.`);
     }
   };
 
@@ -744,44 +796,44 @@ Please take to your local pharmacy to fulfill this prescription.
         
         {/* Messages are already in chronological order (oldest to newest) */}
         {recentMessages.map((message, index) => {
-          const isUser = message.role === "user";
-          const content = cleanMessageContent(message.content);
-          const formattedContent = processAssistantResponse(content);
-          
-          return (
-            <motion.div
-              key={index}
-              className={`flex items-start mb-4 ${isUser ? "justify-end" : "justify-start"}`}
-              initial="hidden"
-              animate="visible"
-              exit="exit"
-              variants={messageVariants}
-              layout
+      const isUser = message.role === "user";
+      const content = cleanMessageContent(message.content);
+      const formattedContent = processAssistantResponse(content);
+      
+      return (
+        <motion.div
+          key={index}
+          className={`flex items-start mb-4 ${isUser ? "justify-end" : "justify-start"}`}
+          initial="hidden"
+          animate="visible"
+          exit="exit"
+          variants={messageVariants}
+          layout
+        >
+          <div className={`flex ${isUser ? "flex-row-reverse" : "flex-row"} max-w-[85%] gap-3`}>
+            <div className="flex-shrink-0 mt-1">
+              {isUser ? (
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                  <UserRound size={16} className="text-primary" />
+                </div>
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center">
+                  <Bot size={16} className="text-accent" />
+                </div>
+              )}
+            </div>
+            <div
+              className={`rounded-2xl px-4 py-3 shadow-sm ${
+                isUser
+                  ? "bg-primary text-primary-foreground rounded-tr-none"
+                  : "bg-card rounded-tl-none border border-border"
+              }`}
             >
-              <div className={`flex ${isUser ? "flex-row-reverse" : "flex-row"} max-w-[85%] gap-3`}>
-                <div className="flex-shrink-0 mt-1">
-                  {isUser ? (
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                      <UserRound size={16} className="text-primary" />
-                    </div>
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center">
-                      <Bot size={16} className="text-accent" />
-                    </div>
-                  )}
-                </div>
-                <div
-                  className={`rounded-2xl px-4 py-3 shadow-sm ${
-                    isUser
-                      ? "bg-primary text-primary-foreground rounded-tr-none"
-                      : "bg-card rounded-tl-none border border-border"
-                  }`}
-                >
-                  <div className="text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: formatMessageContent(formattedContent) }} />
-                </div>
-              </div>
-            </motion.div>
-          );
+              <div className="text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: formatMessageContent(formattedContent) }} />
+            </div>
+          </div>
+        </motion.div>
+      );
         })}
       </>
     );
@@ -925,7 +977,7 @@ Please take to your local pharmacy to fulfill this prescription.
                     </Button>
                   ) : (
                     <Button 
-                      className="w-full" 
+                      className="w-full"
                       onClick={() => addToCart(med)}
                       disabled={cart.some(item => item.name === med.name)}
                     >
@@ -959,7 +1011,7 @@ Please take to your local pharmacy to fulfill this prescription.
                   <Button 
                     className="w-full" 
                     variant="secondary"
-                    onClick={downloadPrescription}
+                    onClick={downloadPrescriptionOptions}
                   >
                     <FileCheck className="h-4 w-4 mr-2" />
                     Download Prescription
@@ -973,7 +1025,7 @@ Please take to your local pharmacy to fulfill this prescription.
                   <Button 
                     className="w-full" 
                     onClick={orderPlaced ? viewOrderDetails : openCheckoutModal}
-                    disabled={cart.length === 0 || allDrugsUnavailable}
+                    disabled={cart.length === 0 || allDrugsUnavailable || cart.filter(item => !item.notFound).length === 0}
                   >
                     <ShoppingCart className="h-4 w-4 mr-2" />
                     {orderPlaced ? 'View Order Details' : 'Proceed to Checkout'}
@@ -984,13 +1036,15 @@ Please take to your local pharmacy to fulfill this prescription.
                       <Button 
                         className="w-full" 
                         variant="outline"
-                        onClick={downloadPrescription}
+                        onClick={downloadPrescriptionOptions}
                       >
                         <FileCheck className="h-4 w-4 mr-2" />
                         Download Full Prescription
                       </Button>
                       <p className="text-xs text-muted-foreground text-center px-4 mt-1">
-                        Some medications are not available. You can still checkout with the available ones or download the full prescription.
+                        {cart.filter(item => item.notFound).length > 0 
+                          ? "Some unavailable medications are in your cart and will be removed during checkout." 
+                          : "Some medications are unavailable but not in your cart."}
                       </p>
                     </div>
                   )}
@@ -1084,6 +1138,7 @@ Please take to your local pharmacy to fulfill this prescription.
                 <Button 
                   className="w-full" 
                   onClick={orderPlaced ? viewOrderDetails : openCheckoutModal}
+                  disabled={cart.filter(item => !item.notFound).length === 0}
                 >
                     <ShoppingCart className="h-4 w-4 mr-2" />
                   Proceed to Checkout
@@ -1092,7 +1147,7 @@ Please take to your local pharmacy to fulfill this prescription.
                 <Button 
                   className="w-full" 
                   variant="secondary"
-                  onClick={downloadPrescription}
+                  onClick={downloadPrescriptionOptions}
                 >
                   <FileCheck className="h-4 w-4 mr-2" />
                   Download Prescription
@@ -1100,21 +1155,28 @@ Please take to your local pharmacy to fulfill this prescription.
               )}
               
               {someDrugsUnavailable && (
+                <div className="space-y-1">
                 <Button 
                   className="w-full" 
                   variant="outline"
-                  onClick={downloadPrescription}
+                    onClick={downloadPrescriptionOptions}
                 >
                   <FileCheck className="h-4 w-4 mr-2" />
                   Download Full Prescription
                 </Button>
+                  <p className="text-xs text-muted-foreground text-center px-4">
+                    {cart.filter(item => item.notFound).length > 0 
+                      ? "Some unavailable medications are in your cart and will be removed during checkout." 
+                      : "Some medications are unavailable but not in your cart."}
+                  </p>
+                </div>
               )}
               
               {!allDrugsUnavailable && !someDrugsUnavailable && (
                 <Button 
                   className="w-full" 
                   variant="outline"
-                  onClick={downloadPrescription}
+                  onClick={downloadPrescriptionOptions}
                 >
                   <FileText className="h-4 w-4 mr-2" />
                   Download Prescription
@@ -1261,7 +1323,7 @@ Please take to your local pharmacy to fulfill this prescription.
       // Open the checkout modal with order details
       setCheckoutOpen(true);
     };
-
+    
     return (
       <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
         <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden max-h-[90vh] overflow-y-auto">
@@ -1341,11 +1403,14 @@ Please take to your local pharmacy to fulfill this prescription.
 
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row gap-3">
-              <PDFPrescription
-                diagnosis={diagnosis?.diagnosis || "No diagnosis available"}
-                prescriptions={diagnosis?.prescriptions || []}
+              <Button
+                variant="outline"
                 className="flex-1"
-              />
+                onClick={downloadPrescriptionOptions}
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Download Prescription
+              </Button>
               <PaystackButton
                 amount={totalAmount}
                 email={userEmail}
@@ -1382,8 +1447,8 @@ Please take to your local pharmacy to fulfill this prescription.
                     "Payment Complete"
                   ) : (
                     `Pay ${totalAmount.toFixed(2)}`
-                  )}
-                </Button>
+                )}
+              </Button>
               </PaystackButton>
             </div>
           </div>
@@ -1430,8 +1495,8 @@ Please take to your local pharmacy to fulfill this prescription.
                     <CardHeader className="py-3 px-4 bg-gray-50">
                       <CardTitle className="text-base flex items-center justify-between">
                         <div className="flex items-center">
-                          <Pill className="h-4 w-4 mr-2 text-blue-600" />
-                          {med.drug_name}
+                        <Pill className="h-4 w-4 mr-2 text-blue-600" />
+                        {med.drug_name}
                         </div>
                         {unavailableDrugs.some(drug => drug.name === med.drug_name) && (
                           <Badge variant="destructive" className="ml-2">
@@ -1442,23 +1507,23 @@ Please take to your local pharmacy to fulfill this prescription.
                     </CardHeader>
                     <CardContent className="py-3 px-4">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                        <div>
+          <div>
                           <p className="text-gray-500 font-medium">Dosage:</p>
                           <p>{med.dosage}</p>
-                        </div>
-                        <div>
+          </div>
+          <div>
                           <p className="text-gray-500 font-medium">Form:</p>
                           <p>{med.form}</p>
-                        </div>
-                        <div>
+          </div>
+          <div>
                           <p className="text-gray-500 font-medium">Duration:</p>
                           <p>{med.duration}</p>
-                        </div>
-                        <div>
+          </div>
+                    <div>
                           <p className="text-gray-500 font-medium">Instructions:</p>
                           <p>{med.instructions}</p>
-                        </div>
                       </div>
+                    </div>
                     </CardContent>
                   </Card>
                 ))}
@@ -1482,7 +1547,7 @@ Please take to your local pharmacy to fulfill this prescription.
                     <Button 
                 className="w-full max-w-xs"
                 onClick={orderPlaced ? viewOrderDetails : () => openCheckoutModal()}
-                disabled={purchaseStatus === 'processing'}
+                disabled={purchaseStatus === 'processing' || cart.filter(item => !item.notFound).length === 0}
               >
                 <ShoppingCart className="mr-2 h-4 w-4" />
                 {orderPlaced ? 'View Order Details' : 'Proceed to Checkout'}
@@ -1559,7 +1624,7 @@ Please take to your local pharmacy to fulfill this prescription.
                     </div>
                     <div className="space-y-1 flex-grow">
                       <div className="flex items-center justify-between">
-                        <p className="font-medium text-sm">{prescription.drug_name}</p>
+                      <p className="font-medium text-sm">{prescription.drug_name}</p>
                         {unavailableDrugs.some(drug => drug.name === prescription.drug_name) && (
                           <Badge variant="destructive" className="text-xs">
                             Not Available
@@ -1570,9 +1635,9 @@ Please take to your local pharmacy to fulfill this prescription.
                       <p className="text-xs text-muted-foreground">{prescription.form}</p>
                       <p className="text-xs text-muted-foreground">{prescription.duration}</p>
                       <p className="text-xs text-muted-foreground">{prescription.instructions}</p>
-                    </div>
+                          </div>
                   </motion.div>
-                ))}
+                      ))}
                 
                 {(!diagnosis.prescriptions || diagnosis.prescriptions.length === 0) && (
                   <div className="p-3 rounded-lg bg-muted/50 text-sm">
@@ -1674,7 +1739,18 @@ Please take to your local pharmacy to fulfill this prescription.
         </div>
       </div>
       
-     
+      {/* Add a floating download button for prescriptions if they exist and diagnosis is complete */}
+      {readyForCheckout && diagnosis && (
+        <div className="fixed bottom-20 right-4 z-50">
+          <Button 
+            className="rounded-full shadow-lg p-3 h-auto"
+            variant="default"
+            onClick={downloadPrescriptionOptions}
+          >
+            <FileText className="h-5 w-5" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 } 

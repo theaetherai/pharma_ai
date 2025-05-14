@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
         message: `Conversation history for anonymous user ${chatUserId} has been reset (no database operation needed)` 
       });
     }
-    
+
     // Find the user in the database
     const user = await db.user.findFirst({
       where: {
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
         ]
       }
     });
-    
+
     // If user not found, return success but with a note
     if (!user) {
       return NextResponse.json({ 
@@ -39,14 +39,14 @@ export async function POST(request: NextRequest) {
         message: `User ${chatUserId} not found in database, no conversations to reset` 
       });
     }
-    
+
     // Actually delete conversations from the database
     const result = await db.conversation.deleteMany({
       where: { userId: user.id }
     });
-    
+
     console.log(`Deleted ${result.count} conversations for user ${chatUserId}`);
-    
+
     return NextResponse.json({ 
       success: true,
       message: `Deleted ${result.count} conversations for user ${chatUserId}` 

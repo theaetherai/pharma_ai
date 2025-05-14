@@ -13,7 +13,7 @@ import {
 
 type OrderStatusData = {
   status: string;
-  count: number;
+  count: number | bigint;
 };
 
 interface OrderStatusChartProps {
@@ -42,8 +42,13 @@ function OrderStatusChartComponent({
   title = "Order Status Distribution", 
   description = "Distribution of orders by status" 
 }: OrderStatusChartProps) {
-  // Sort data by count
-  const sortedData = [...data].sort((a, b) => b.count - a.count);
+  // Convert any potential BigInt values to Number and sort data by count
+  const sortedData = [...data]
+    .map(item => ({
+      status: item.status,
+      count: Number(item.count)
+    }))
+    .sort((a, b) => b.count - a.count);
 
   return (
     <Card>

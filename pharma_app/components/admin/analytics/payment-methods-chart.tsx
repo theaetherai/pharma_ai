@@ -13,8 +13,8 @@ import {
 
 type PaymentMethodData = {
   paymentMethod: string;
-  count: number;
-  total: number;
+  count: number | bigint;
+  total: number | bigint;
 };
 
 interface PaymentMethodsChartProps {
@@ -31,10 +31,10 @@ function PaymentMethodsChartComponent({
   title = "Payment Methods", 
   description = "Distribution of payment methods used" 
 }: PaymentMethodsChartProps) {
-  // Format data for chart display
+  // Format data for chart display - explicitly convert BigInt to Number
   const chartData = data.map((item) => ({
     name: item.paymentMethod,
-    value: item.count,
+    value: Number(item.count),
     total: new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD'

@@ -15,9 +15,9 @@ import {
 
 type DrugCategoryData = {
   category: string;
-  count: number;
-  total_sold: number;
-  revenue: number;
+  count: number | bigint;
+  total_sold: number | bigint;
+  revenue: number | bigint;
 };
 
 interface DrugCategoryChartProps {
@@ -38,9 +38,12 @@ function DrugCategoryChartComponent({
   title = "Drug Categories", 
   description = "Distribution of drugs by category" 
 }: DrugCategoryChartProps) {
-  // Format the data for better display
+  // Format the data for better display and explicitly convert BigInt to Number
   const formattedData = data.map(item => ({
-    ...item,
+    category: item.category,
+    count: Number(item.count),
+    total_sold: Number(item.total_sold),
+    revenue: Number(item.revenue),
     formattedRevenue: new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD'

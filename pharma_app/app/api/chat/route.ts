@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
         { error: 'Message is required' },
         { status: 400 }
       );
-    }
+      }
     
     // Call our TypeScript implementation
     const response = await chatWithAgent(chatUserId, message);

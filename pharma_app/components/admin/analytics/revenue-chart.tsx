@@ -15,8 +15,8 @@ import {
 
 type RevenueData = {
   date: string;
-  revenue: number;
-  transactions: number;
+  revenue: number | bigint;
+  transactions: number | bigint;
 };
 
 interface RevenueChartProps {
@@ -30,13 +30,15 @@ function RevenueChartComponent({
   title = "Revenue Trends", 
   description = "Daily revenue for the past 30 days" 
 }: RevenueChartProps) {
-  // Format data for better display
+  // Format data for better display and explicitly convert BigInt to Number
   const formattedData = data.map(item => ({
-    ...item,
+    date: item.date,
+    revenue: Number(item.revenue),
+    transactions: Number(item.transactions),
     formattedRevenue: new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD'
-    }).format(item.revenue)
+    }).format(Number(item.revenue))
   }));
 
   return (

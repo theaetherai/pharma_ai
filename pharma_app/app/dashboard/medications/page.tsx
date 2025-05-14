@@ -241,7 +241,7 @@ function MedicationCard({ medication }: { medication: any }) {
                 </div>
               </div>
               <div className="text-lg font-semibold text-primary">
-                ${medication.price.toFixed(2)}
+                GH₵{medication.price.toFixed(2)}
               </div>
             </div>
           </CardHeader>

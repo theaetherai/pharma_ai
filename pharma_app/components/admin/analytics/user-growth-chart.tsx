@@ -15,7 +15,7 @@ import {
 
 type UserGrowthData = {
   date: string;
-  count: number;
+  count: number | bigint;
 };
 
 interface UserGrowthChartProps {
@@ -29,6 +29,12 @@ function UserGrowthChartComponent({
   title = "User Growth", 
   description = "Cumulative user growth over time" 
 }: UserGrowthChartProps) {
+  // Convert any potential BigInt values to Number
+  const formattedData = data.map(item => ({
+    date: item.date,
+    count: Number(item.count)
+  }));
+  
   return (
     <Card>
       <CardHeader>
@@ -38,7 +44,7 @@ function UserGrowthChartComponent({
       <CardContent className="h-80">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
-            data={data}
+            data={formattedData}
             margin={{
               top: 5,
               right: 30,

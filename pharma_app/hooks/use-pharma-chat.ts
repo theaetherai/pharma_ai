@@ -32,6 +32,40 @@ export function usePharmaChat() {
   const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
   const [readyForCheckout, setReadyForCheckout] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  // Add a flag to track if messages were just loaded from storage
+  const [initialLoad, setInitialLoad] = useState(true);
+  // Add a flag to track the message timestamp when messages were first loaded
+  const [initialMessagesTimestamp, setInitialMessagesTimestamp] = useState<number>(0);
+
+  // Effect to sync readyForCheckout with diagnosis state
+  useEffect(() => {
+    setReadyForCheckout(!!diagnosis);
+  }, [diagnosis]);
+
+  // Override the standard setMessages to track when new messages are added
+  const setMessagesWithTracking = useCallback((newMessagesOrFunction: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => {
+    setMessages((prevMessages) => {
+      const newMessages = typeof newMessagesOrFunction === 'function' 
+        ? newMessagesOrFunction(prevMessages) 
+        : newMessagesOrFunction;
+        
+      // If this is the initial load of messages, save a timestamp
+      if (initialLoad && newMessages.length > 0 && initialMessagesTimestamp === 0) {
+        console.log('Setting initial messages timestamp');
+        setInitialMessagesTimestamp(Date.now());
+      }
+      
+      return newMessages;
+    });
+  }, [initialLoad, initialMessagesTimestamp]);
+  
+  // Replace standard setMessages with our tracked version
+  useEffect(() => {
+    if (initialLoad && messages.length > 0 && initialMessagesTimestamp === 0) {
+      console.log('Messages loaded, setting initial timestamp');
+      setInitialMessagesTimestamp(Date.now());
+    }
+  }, [messages, initialLoad, initialMessagesTimestamp]);
 
   // Effect to load conversation history on page load
   useEffect(() => {
@@ -41,28 +75,25 @@ export function usePharmaChat() {
         
         // Try to load from API first since it's now database-backed
         try {
-          const response = await fetch('/api/conversations');
-          
+        const response = await fetch('/api/conversations');
+        
           if (response.ok) {
-            const data = await response.json();
-            
-            // If we have chat history, set it in the state
-            if (data.success && data.chatHistory && data.chatHistory.length > 0) {
+        const data = await response.json();
+        
+        // If we have chat history, set it in the state
+        if (data.success && data.chatHistory && data.chatHistory.length > 0) {
               console.log('Loaded conversation history from API:', data.chatHistory.length, 'messages');
-              setMessages(data.chatHistory);
-              
+          setMessages(data.chatHistory);
+          
               // Also save to localStorage as backup
               localStorage.setItem('pharmaai-chat-history', JSON.stringify(data.chatHistory));
-              
-              // Check if the last message indicates we were in the middle of a diagnosis
-              const lastMessage = data.chatHistory[data.chatHistory.length - 1];
-              if (lastMessage && lastMessage.role === 'assistant' && 
-                  lastMessage.content.includes("passing this to the system")) {
-                // If we were at the diagnosis stage, try to restore diagnosis data
-                await restoreDiagnosis();
-              }
+          
+          // Instead, just try to restore previous diagnosis without generating a new one
+          await restoreDiagnosis();
               
               setIsLoadingHistory(false);
+              // Set initialLoad flag to prevent auto-diagnosis
+              setInitialLoad(true);
               return; // Skip localStorage loading if API succeeded
             }
           }
@@ -82,13 +113,8 @@ export function usePharmaChat() {
               console.log('Loaded conversation history from localStorage:', parsedChats.length, 'messages');
               setMessages(parsedChats);
               
-              // Check if the last message indicates we were in the middle of a diagnosis
-              const lastMessage = parsedChats[parsedChats.length - 1];
-              if (lastMessage && lastMessage.role === 'assistant' && 
-                  lastMessage.content.includes("passing this to the system")) {
-                // If we were at the diagnosis stage, try to restore diagnosis data
-                await restoreDiagnosis();
-              }
+              // Instead, just try to restore previous diagnosis without generating a new one
+            await restoreDiagnosis();
             }
           } catch (error) {
             console.error('Error parsing saved chat history:', error);
@@ -99,26 +125,28 @@ export function usePharmaChat() {
         console.error('Error loading conversation history:', err);
       } finally {
         setIsLoadingHistory(false);
+        // Set initialLoad flag to prevent auto-diagnosis
+        setInitialLoad(true);
       }
     }
     
-    // Restore diagnosis data if needed
+    // Modified to only load existing diagnosis data without triggering a new diagnosis
     async function restoreDiagnosis() {
       try {
+        console.log('Attempting to restore previously saved diagnosis only');
+        let diagnosisRestored = false;
+        
         // First try to get diagnosis from API (database)
         try {
           const response = await fetch('/api/diagnose/latest');
-          
           if (response.ok) {
             const data = await response.json();
             if (data.diagnosis) {
-              console.log('Restored diagnosis from API');
+              console.log('Restored existing diagnosis from API');
               setDiagnosis(data.diagnosis);
-              setReadyForCheckout(true);
-              
-              // Save to localStorage for future use
+              // Save to localStorage as it came from API
               localStorage.setItem('pharmaai-diagnosis', JSON.stringify(data.diagnosis));
-              return; // Skip localStorage if API succeeded
+              diagnosisRestored = true;
             }
           }
         } catch (apiErr) {
@@ -126,23 +154,33 @@ export function usePharmaChat() {
           // Continue to try localStorage as fallback
         }
         
-        // Fallback to localStorage
-        const savedDiagnosis = localStorage.getItem('pharmaai-diagnosis');
-        if (savedDiagnosis) {
-          try {
-            const parsedDiagnosis = JSON.parse(savedDiagnosis);
-            if (parsedDiagnosis && parsedDiagnosis.diagnosis) {
-              console.log('Restored diagnosis from localStorage');
-              setDiagnosis(parsedDiagnosis);
-              setReadyForCheckout(true);
+        // Fallback to localStorage if not restored from API
+        if (!diagnosisRestored) {
+          const savedDiagnosis = localStorage.getItem('pharmaai-diagnosis');
+          if (savedDiagnosis) {
+            try {
+              const parsedDiagnosis = JSON.parse(savedDiagnosis);
+              if (parsedDiagnosis && parsedDiagnosis.diagnosis) {
+                console.log('Restored existing diagnosis from localStorage');
+                setDiagnosis(parsedDiagnosis);
+                // No need to save to localStorage again, it was just read from there
+                diagnosisRestored = true;
+              }
+            } catch (parseErr) {
+              console.error('Error parsing saved diagnosis:', parseErr);
+              localStorage.removeItem('pharmaai-diagnosis'); // Remove corrupted item
             }
-          } catch (parseErr) {
-            console.error('Error parsing saved diagnosis:', parseErr);
-            localStorage.removeItem('pharmaai-diagnosis');
           }
         }
+
+        // If no diagnosis was restored from any source
+        if (!diagnosisRestored) {
+          console.log('No existing diagnosis found to restore.');
+          setDiagnosis(null);
+        }
       } catch (err) {
-        console.error('Error restoring diagnosis:', err);
+        console.error('Error during restoreDiagnosis:', err);
+        setDiagnosis(null); // Ensure diagnosis is null on any overarching error
       }
     }
     
@@ -161,59 +199,82 @@ export function usePharmaChat() {
     }
   }, [messages, userId, isLoadingHistory]);
 
-  // Effect to handle automatic diagnosis when ready
+  // Reset initialLoad flag when a new message is sent/received (but not during loading history)
   useEffect(() => {
-    // Don't trigger while loading history
-    if (isLoadingHistory) return;
+    if (!isLoadingHistory && messages.length > 0 && initialLoad) {
+      // After the user sends a new message, we're no longer in initial load state
+      const resetInitialLoad = () => {
+        console.log('No longer in initial load state, enabling auto-diagnosis');
+        setInitialLoad(false);
+      };
+      
+      // Add a small delay to ensure this happens after message processing
+      const timeoutId = setTimeout(resetInitialLoad, 1000);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [messages, isLoadingHistory, initialLoad]);
+
+  // Effect to handle automatic diagnosis when ready - now with initialLoad check
+  useEffect(() => {
+    // Don't trigger while loading history or during initial load
+    if (isLoadingHistory) {
+      console.log('Not checking for diagnosis triggers - still loading history');
+      return;
+    }
     
-    // When marked as ready for diagnosis from a "no" response, automatically request diagnosis
+    if (initialLoad) {
+      console.log('Not checking for diagnosis triggers - in initial load state');
+      return;
+    }
+    
+    // If messages haven't changed since initial load, don't trigger diagnosis
+    if (initialMessagesTimestamp > 0 && Date.now() - initialMessagesTimestamp < 5000) {
+      console.log('Not checking for diagnosis triggers - messages too recently loaded', 
+        Date.now() - initialMessagesTimestamp, 'ms ago');
+      return;
+    }
+    
+    // Only check for specific trigger phrases in assistant messages, not auto-diagnose
+    console.log('Checking last message for diagnosis triggers...');
+    
+    // Only proceed with auto-diagnosis if we're not in the initial load state
+    // and only when the assistant specifically mentions diagnosis preparation
     const lastMessage = messages[messages.length - 1];
     if (lastMessage?.role === 'assistant' && 
-        (lastMessage?.content?.includes("I'll prepare your diagnosis and prescription") ||
-         lastMessage?.content?.includes("I'll provide a preliminary assessment") ||
-         lastMessage?.content?.includes("I'll prepare a preliminary diagnosis"))) {
-      requestDiagnosis(
-        lastMessage?.content?.includes("preliminary") // Pass true for on-demand if it's a preliminary diagnosis
-      );
+        lastMessage?.content?.includes("I'll prepare your diagnosis and prescription")) {
+      console.log('Auto-triggering diagnosis based on assistant message:', lastMessage.content);
+      requestDiagnosis(false);
     }
-  }, [messages, isLoadingHistory]);
+  }, [messages, isLoadingHistory, initialLoad, initialMessagesTimestamp]);
 
-  // Effect to handle on-demand diagnosis requests from user messages
+  // Effect to handle on-demand diagnosis requests from user messages - with initialLoad check
   useEffect(() => {
-    // Don't trigger while loading history
-    if (isLoadingHistory) return;
+    // Don't trigger while loading history or during initial load
+    if (isLoadingHistory) {
+      return;
+    }
     
-    // Check the last user message for diagnosis request
+    if (initialLoad) {
+      return;
+    }
+    
+    // If messages haven't changed since initial load, don't trigger diagnosis
+    if (initialMessagesTimestamp > 0 && Date.now() - initialMessagesTimestamp < 5000) {
+      return;
+    }
+    
+    // Check the last user message for explicit diagnosis request
     const lastMessage = messages[messages.length - 1];
     if (lastMessage?.role === 'user') {
       const content = lastMessage.content.toLowerCase();
       
-      // Expanded patterns to detect diagnosis requests in natural language
-      if (content.includes("diagnose me") || 
-          content.includes("need a diagnosis") ||
-          content.includes("get a diagnosis") ||
-          content.includes("give me a diagnosis") ||
-          content.includes("can you diagnose") ||
-          content.includes("provide a diagnosis") ||
-          content.includes("diagnosis please") ||
-          content.includes("my diagnosis") ||
-          content.includes("what's wrong with me") ||
-          content.includes("what is wrong with me") ||
-          content.includes("do i have") ||
-          content.includes("am i sick") ||
-          content.includes("medical opinion") ||
-          content.includes("assess my symptoms") ||
-          content.includes("assess my condition") ||
-          content.includes("what condition") ||
-          content.includes("health assessment") ||
-          content.includes("analyze my symptoms") ||
-          content.includes("tell me what i have") ||
-          content === "diagnose") {
-            
+      // Only respond to direct "diagnose" commands, not auto-diagnose
+      if (content === "diagnose") {  
+        console.log('Explicit diagnosis request detected in user message');
         // Add an immediate response from the AI
         setMessages(prev => [...prev, { 
           role: 'assistant', 
-          content: "I'll provide a preliminary diagnosis based on the information you've shared so far. Let me analyze your symptoms..."
+          content: "I'll provide a diagnosis based on the information you've shared so far. Let me analyze your symptoms..."
         }]);
         
         // Request an on-demand diagnosis after a short delay for natural conversation flow
@@ -222,7 +283,7 @@ export function usePharmaChat() {
         }, 800);
       }
     }
-  }, [messages, isLoadingHistory]);
+  }, [messages, isLoadingHistory, initialLoad, initialMessagesTimestamp]);
 
   // Updated to include more natural language patterns for diagnosis requests
   function isDiagnosisRequest(message: string): boolean {
@@ -249,6 +310,12 @@ export function usePharmaChat() {
     try {
       setIsLoading(true);
       setError(null);
+      
+      // Reset initialLoad flag when user sends a new message
+      if (initialLoad) {
+        console.log('User sent a new message, exiting initial load state');
+        setInitialLoad(false);
+      }
       
       // Handle special case for checkout completion
       if (message === "checkout_complete") {
@@ -327,21 +394,23 @@ export function usePharmaChat() {
     } finally {
       setIsLoading(false);
     }
-  }, [userId]);
+  }, [userId, initialLoad]);
   
   // Enhanced response flow for on-demand diagnosis
   const requestDiagnosis = async (on_demand: boolean = false) => {
-    // If messages are empty or already loading, do nothing
     if (messages.length === 0 || isLoading) return;
+    
+    if (initialLoad) {
+      console.log('Skipping diagnosis request during initial page load');
+      return;
+    }
     
     try {
       setIsLoading(true);
-      // Log the type of diagnosis for debugging
+      // readyForCheckout will be handled by the useEffect listening to 'diagnosis' state
       console.log(`Requesting ${on_demand ? 'on-demand' : 'standard'} diagnosis`);
       
-      // Generate a handover message from the AI if this is an on-demand diagnosis
       if (on_demand) {
-        // Add a message from the assistant acknowledging the diagnosis request
         setMessages((prev) => [
           ...prev,
           {
@@ -349,18 +418,11 @@ export function usePharmaChat() {
             content: "I'll provide a preliminary diagnosis based on the information you've shared so far. Let me analyze your symptoms..."
           }
         ]);
-        
-        // Add a small delay to make the conversation flow feel more natural
         await new Promise((resolve) => setTimeout(resolve, 800));
       }
       
-      // Make a safe copy of messages to prevent any state issues
       const messagesCopy = [...messages];
-      
-      // Truncate the conversation to prevent token limit errors
       const truncatedMessages = truncateConversation(messagesCopy);
-      
-      // Ensure the messages array is properly structured and contains valid objects
       const validMessages = truncatedMessages.filter(msg => 
         msg && typeof msg === 'object' && 
         typeof msg.role === 'string' && 
@@ -369,93 +431,46 @@ export function usePharmaChat() {
       
       console.log(`Sending ${validMessages.length} messages for diagnosis (truncated from ${messagesCopy.length})`);
       
-      // Make the API call to get diagnosis
       const response = await fetch("/api/diagnose", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId, // Include the userId for backward compatibility
+          userId,
           conversation: validMessages,
           on_demand: on_demand,
         }),
-        // Add credentials to ensure Clerk auth cookies are sent
         credentials: 'include'
       });
       
-      // For debugging
       if (!response.ok) {
-        console.error(`Diagnosis API error: ${response.status}`);
-        try {
-          const errorText = await response.text();
-          console.error(`Response body: ${errorText}`);
-        } catch (e) {
-          console.error("Could not read error response body");
-        }
-        throw new Error(`Diagnosis request failed with status: ${response.status}`);
+        const errorData = await response.json().catch(() => ({ message: 'Failed to get diagnosis, server error.' }));
+        throw new Error(errorData.message || `Diagnosis API error: ${response.status}`);
       }
-      
-      // Get response as text first to debug any JSON parsing issues
-      const responseText = await response.text();
-      
-      let data;
-      try {
-        data = JSON.parse(responseText);
-        console.log('Full diagnosis response data:', data);
-      } catch (err) {
-        console.error('Failed to parse diagnosis response as JSON:', err);
-        console.error('Raw response:', responseText);
-        throw new Error('Invalid JSON response from diagnosis API');
+
+      const data = await response.json();
+      if (!data.diagnosis || !data.diagnosis.diagnosis) {
+        throw new Error('Invalid diagnosis response format from server.');
       }
+
+      // Set diagnosis state
+      setDiagnosis(data.diagnosis);
       
-      // Set diagnosis data from the response
-      if (data && data.diagnosis) {
-        console.log('Setting diagnosis state with data:', data.diagnosis);
-        
-        // Clone the diagnosis data to ensure we don't have any reference issues
-        const diagnosisData = JSON.parse(JSON.stringify(data.diagnosis));
-        
-        // Set diagnosis state
-        setDiagnosis(diagnosisData);
-        
-        // Set checkout readiness based on response or default to true
-        setReadyForCheckout(data.checkout_ready !== false);
-        
-        // Save diagnosis to localStorage as backup
-        localStorage.setItem('pharmaai-diagnosis', JSON.stringify(diagnosisData));
-        
-        console.log('Diagnosis state has been set:', diagnosisData);
-        console.log('Ready for checkout:', data.checkout_ready !== false);
-      } else {
-        console.error("Unexpected diagnosis response format:", data);
-        throw new Error("Diagnosis data not found in response");
-      }
-      
-      // Add a handover message for smoother transition
-      let handoverMessage = on_demand 
-        ? "Based on the symptoms you've described, here's my diagnosis and recommended treatment plan. Would you like me to explain anything in more detail?"
-        : "I've completed my analysis of your health situation. Here's my diagnosis and recommended treatment plan. Let me know if you have any questions.";
-      
+      // Save diagnosis to localStorage as backup
+      localStorage.setItem('pharmaai-diagnosis', JSON.stringify(data.diagnosis));
+
+      // Add diagnosis result to chat (or handle as needed)
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          content: handoverMessage
+          content: `Based on your symptoms, here is a preliminary diagnosis: ${data.diagnosis.diagnosis}. Prescriptions: ${data.diagnosis.prescriptions.map((p: Prescription) => p.drug_name).join(', ') || 'None'}. Recommendations: ${data.diagnosis.follow_up_recommendations}`
         }
       ]);
+      console.log('Diagnosis and prescription received:', data.diagnosis);
     } catch (error) {
-      console.error("Error requesting diagnosis:", error);
-      setError("Failed to generate diagnosis. Please try again.");
-      
-      // Add error message to the chat for better user experience
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: "I'm sorry, I encountered an error while generating your diagnosis. Please try again or contact support if the problem persists."
-        }
-      ]);
+      console.error('Error requesting diagnosis:', error);
+      setError(error instanceof Error ? error.message : 'An unknown error occurred during diagnosis');
+      setDiagnosis(null); // Clear diagnosis on error
     } finally {
       setIsLoading(false);
     }
@@ -493,6 +508,8 @@ export function usePharmaChat() {
     setDiagnosis(null);
     setError(null);
     setReadyForCheckout(false);
+    // Reset initialLoad flag to false when clearing chat
+    setInitialLoad(false);
     
     // Also clear localStorage chat data
     localStorage.removeItem('pharmaai-chat-history');
@@ -509,6 +526,8 @@ export function usePharmaChat() {
       setDiagnosis(null);
       setError(null);
       setReadyForCheckout(false);
+      // Reset initialLoad flag to false when resetting chat
+      setInitialLoad(false);
       
       // Clear localStorage data
       localStorage.removeItem('pharmaai-chat-history');
@@ -580,6 +599,7 @@ export function usePharmaChat() {
     clearChat,
     isLoadingHistory,
     resetChat,
-    setMessages,
+    setMessages: setMessagesWithTracking,
+    initialLoad,
   };
 } 
