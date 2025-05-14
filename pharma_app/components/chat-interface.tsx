@@ -1484,7 +1484,15 @@ Please take to your local pharmacy to fulfill this prescription.
           <div className="p-3 sm:p-4">
             <div className="mb-4">
               <h4 className="font-semibold text-gray-700 mb-2">Diagnosis:</h4>
-              <p className="text-gray-700">{diagnosis.diagnosis}</p>
+              <p className="text-gray-700">
+                {typeof diagnosis.diagnosis === 'string'
+                  ? diagnosis.diagnosis
+                  : typeof diagnosis.diagnosis === 'object' && diagnosis.diagnosis !== null && typeof (diagnosis.diagnosis as any).diagnosis === 'string'
+                  ? (diagnosis.diagnosis as any).diagnosis
+                  : typeof diagnosis.diagnosis === 'object' && diagnosis.diagnosis !== null
+                  ? JSON.stringify(diagnosis.diagnosis)
+                  : 'No diagnosis text available.'}
+              </p>
           </div>
           
             <div className="mb-4">
@@ -1539,7 +1547,15 @@ Please take to your local pharmacy to fulfill this prescription.
             {diagnosis.follow_up_recommendations && diagnosis.follow_up_recommendations !== "None" && (
               <div className="mb-4">
                 <h4 className="font-semibold text-gray-700 mb-2">Follow-up Recommendations:</h4>
-                <p className="text-gray-700">{diagnosis.follow_up_recommendations}</p>
+                <p className="text-gray-700">
+                  {typeof diagnosis.follow_up_recommendations === 'string'
+                    ? diagnosis.follow_up_recommendations
+                    : typeof diagnosis.follow_up_recommendations === 'object' && diagnosis.follow_up_recommendations !== null
+                    ? Object.entries(diagnosis.follow_up_recommendations)
+                        .map(([key, value]) => `${key}: ${value}`)
+                        .join(', ')
+                    : 'No specific follow-up recommendations provided.'}
+                </p>
               </div>
             )}
             
@@ -1597,7 +1613,15 @@ Please take to your local pharmacy to fulfill this prescription.
           <div className="space-y-4">
             <div className="space-y-2">
               <h4 className="font-medium text-sm text-muted-foreground">Assessment</h4>
-              <p className="text-sm">{diagnosis.diagnosis}</p>
+              <p className="text-sm">
+                {typeof diagnosis.diagnosis === 'string'
+                  ? diagnosis.diagnosis
+                  : typeof diagnosis.diagnosis === 'object' && diagnosis.diagnosis !== null && typeof (diagnosis.diagnosis as any).diagnosis === 'string'
+                  ? (diagnosis.diagnosis as any).diagnosis
+                  : typeof diagnosis.diagnosis === 'object' && diagnosis.diagnosis !== null
+                  ? JSON.stringify(diagnosis.diagnosis)
+                  : 'No diagnosis text available.'}
+              </p>
               </div>
             
             <div className="space-y-2">
@@ -1650,7 +1674,15 @@ Please take to your local pharmacy to fulfill this prescription.
             {diagnosis.follow_up_recommendations && diagnosis.follow_up_recommendations !== "None" && (
               <div className="space-y-2">
                 <h4 className="font-medium text-sm text-muted-foreground">Follow-up Recommendations</h4>
-                <p className="text-sm">{diagnosis.follow_up_recommendations}</p>
+                <p className="text-sm">
+                  {typeof diagnosis.follow_up_recommendations === 'string'
+                    ? diagnosis.follow_up_recommendations
+                    : typeof diagnosis.follow_up_recommendations === 'object' && diagnosis.follow_up_recommendations !== null
+                    ? Object.entries(diagnosis.follow_up_recommendations)
+                        .map(([key, value]) => `${key}: ${value}`)
+                        .join(', ')
+                    : 'No specific follow-up recommendations provided.'}
+                </p>
             </div>
             )}
           </div>
