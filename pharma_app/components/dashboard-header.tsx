@@ -1,13 +1,8 @@
 "use client";
 
-import { Bell, Menu, Search, ShoppingCart } from "lucide-react";
+import { Bell, Search, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Sheet,
-  SheetContent,
-  SheetTrigger,
-} from "@/components/ui/sheet";
 import { UserButton } from "@clerk/nextjs";
 import { Notifications } from "@/components/notifications";
 import { useCart } from "@/components/cart/cart-provider";
@@ -20,22 +15,6 @@ export function DashboardHeader() {
   return (
     <header className="border-b bg-background">
       <div className="flex h-16 items-center px-4 md:px-6">
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="md:hidden"
-            >
-              <Menu className="h-5 w-5" />
-              <span className="sr-only">Toggle menu</span>
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="md:hidden">
-            {/* Mobile nav content */}
-          </SheetContent>
-        </Sheet>
-        
         <div className="ml-auto flex items-center gap-4">
           <form className="hidden md:flex relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
