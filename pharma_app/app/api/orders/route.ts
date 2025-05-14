@@ -48,18 +48,28 @@ export async function GET(req: NextRequest) {
     // Get orders
     const orders = await db.order.findMany({
       where: whereClause,
-      include: {
+      select: {
+        id: true,
+        userId: true,
+        addressId: true,
+        status: true,
+        total: true,
+        createdAt: true,
+        updatedAt: true,
         items: {
-          include: {
-            drug: true
+          select: {
+            id: true, quantity: true, price: true, // Fields from OrderItem
+            drug: { select: { id: true, name: true, dosage: true, form: true, price: true } } // Fields from Drug
           }
         },
-        address: true,
+        address: { // Select all fields from Address, or specify if needed
+          select: { id:true, addressLine1:true, addressLine2:true, city:true, state:true, postalCode:true, country:true, isDefault:true }
+        },
         statusLogs: {
-          orderBy: {
-            createdAt: "desc"
-          }
+          select: { id:true, status:true, notes:true, createdAt:true }, // Fields from OrderStatusLog
+          orderBy: { createdAt: "desc" }
         }
+        // DO NOT INCLUDE 'payments' relation here if it's causing issues, unless explicitly needed by client
       },
       orderBy: {
         createdAt: "desc"
