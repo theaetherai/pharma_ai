@@ -32,7 +32,7 @@ export class PharmacistAgent {
 
   constructor(api_key?: string, model: string = "llama3-8b-8192") {
     // Hard-code API parameters that are known to work
-    this.api_key = api_key || "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";
+    this.api_key = api_key || "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";
     this.base_url = "https://api.groq.com/openai/v1";
     this.model = model;
     
